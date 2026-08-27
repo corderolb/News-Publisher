@@ -59,7 +59,8 @@ export async function listModelsForProvider(
       if (!response.ok) continue;
 
       const body = await response.json();
-      const rawModels: any[] = Array.isArray(body?.data) ? body.data : [];
+      const rawModels: Array<{ id: string; type?: string; state?: string; publisher?: string; arch?: string }> =
+        Array.isArray(body?.data) ? body.data : [];
       if (rawModels.length === 0) continue;
 
       const models: LmStudioModel[] = rawModels.map((m) => ({

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getErrorMessage } from '@/lib/errors';
 import {
   collectHotTopics,
   FilteredHotTopic,
@@ -355,14 +356,14 @@ export async function GET(request: Request) {
     const payload = await requestPromise;
     payload.topics = await attachDuplicateFlags(payload.topics);
     return NextResponse.json(payload);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[research-topics] GET failed', {
-      message: error?.message,
+      message: getErrorMessage(error),
       preset,
       focusThemes,
     });
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Research-Themen konnten nicht geladen werden' },
+      { ok: false, error: getErrorMessage(error, 'Research-Themen konnten nicht geladen werden') },
       { status: 500 }
     );
   } finally {

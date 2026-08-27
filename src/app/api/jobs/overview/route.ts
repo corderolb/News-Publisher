@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getErrorMessage } from '@/lib/errors';
 
 export async function GET() {
   try {
@@ -64,9 +65,9 @@ export async function GET() {
       jobRuns: jobRuns.map((run) => ({ ...run, radarItem: run.radarItems[0] || null, radarItems: undefined })),
       generatedAt: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error) {
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Job-Overview konnte nicht geladen werden' },
+      { ok: false, error: getErrorMessage(error, 'Job-Overview konnte nicht geladen werden') },
       { status: 500 }
     );
   }

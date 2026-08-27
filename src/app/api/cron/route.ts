@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runRadarScanIfDue, runRadarScanNow } from '@/lib/radar-scan';
 import { drainQueue } from '@/lib/job-queue';
+import { getErrorMessage } from '@/lib/errors';
 
 export const maxDuration = 300; // max length for vercel function timeout
 
@@ -26,8 +27,8 @@ export async function GET(request: Request) {
     await drainQueue();
 
     return NextResponse.json({ ok: true, mode: force ? 'radar-forced' : 'radar-if-due' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Cron job error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }
 }

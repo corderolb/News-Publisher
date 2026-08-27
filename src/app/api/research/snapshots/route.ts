@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSnapshotDelegate } from '@/lib/research-snapshot-delegate';
+import { getErrorMessage } from '@/lib/errors';
 
 export type SnapshotMeta = {
   id: string;
@@ -65,10 +66,10 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({ ok: true, snapshots, total, offset, limit });
-  } catch (error: any) {
-    console.error('[research-snapshots] GET failed', { message: error?.message, preset });
+  } catch (error) {
+    console.error('[research-snapshots] GET failed', { message: getErrorMessage(error), preset });
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Snapshot-Historie konnte nicht geladen werden' },
+      { ok: false, error: getErrorMessage(error, 'Snapshot-Historie konnte nicht geladen werden') },
       { status: 500 }
     );
   }

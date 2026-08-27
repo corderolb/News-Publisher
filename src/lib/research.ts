@@ -26,8 +26,12 @@ async function searchWithBrave(query: string, limit: number): Promise<ResearchRe
     },
   });
 
-  const results = Array.isArray(response.data?.web?.results) ? response.data.web.results : [];
-  return results.slice(0, limit).map((r: any) => ({
+  const results: Array<{ title?: unknown; url?: unknown; description?: unknown }> = Array.isArray(
+    response.data?.web?.results
+  )
+    ? response.data.web.results
+    : [];
+  return results.slice(0, limit).map((r) => ({
     title: String(r?.title || "").trim(),
     url: String(r?.url || "").trim(),
     snippet: String(r?.description || "").replace(/<\/?strong>/g, "").trim(),

@@ -17,16 +17,16 @@ export type SnapshotRow = {
 };
 
 export type SnapshotDelegate = {
-  findFirst: (args: any) => Promise<SnapshotRow | null>;
-  findMany: (args: any) => Promise<SnapshotRow[]>;
-  create: (args: any) => Promise<SnapshotRow>;
-  count: (args: any) => Promise<number>;
+  findFirst: (args: unknown) => Promise<SnapshotRow | null>;
+  findMany: (args: unknown) => Promise<SnapshotRow[]>;
+  create: (args: unknown) => Promise<SnapshotRow>;
+  count: (args: unknown) => Promise<number>;
 };
 
 let snapshotModelWarningShown = false;
 
 export function getSnapshotDelegate(): SnapshotDelegate | null {
-  const delegate = (prisma as any).researchTopicSnapshot;
+  const delegate = (prisma as unknown as Record<string, Partial<SnapshotDelegate>>).researchTopicSnapshot;
   if (
     delegate &&
     typeof delegate.findFirst === 'function' &&

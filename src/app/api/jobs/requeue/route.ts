@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requeueJobRun } from '@/lib/job-queue';
+import { getErrorMessage } from '@/lib/errors';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
 
     const newJob = await requeueJobRun(jobRunId);
     return NextResponse.json({ ok: true, jobRunId: newJob.id, status: newJob.status });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Erneutes Einreihen fehlgeschlagen' }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: getErrorMessage(error, 'Erneutes Einreihen fehlgeschlagen') }, { status: 500 });
   }
 }

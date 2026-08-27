@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dispatchResearchTopic, DuplicateTopicError } from '@/lib/research-jobs';
+import { getErrorMessage } from '@/lib/errors';
 
 export async function POST(request: Request) {
   try {
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ ok: true, ...result });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof DuplicateTopicError) {
       return NextResponse.json(
         { ok: false, error: error.message, duplicate: error.duplicate },
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { ok: false, error: error?.message || 'Research-Auftrag fehlgeschlagen' },
+      { ok: false, error: getErrorMessage(error, 'Research-Auftrag fehlgeschlagen') },
       { status: 500 }
     );
   }

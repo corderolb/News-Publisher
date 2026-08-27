@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getErrorMessage } from '@/lib/errors';
 
 export async function GET(request: Request) {
   try {
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
 
     const { radarItems, ...rest } = job;
     return NextResponse.json({ ok: true, job: { ...rest, radarItem: radarItems[0] || null } });
-  } catch (error: any) {
-    return NextResponse.json({ ok: false, error: error?.message || 'Status konnte nicht geladen werden' }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: getErrorMessage(error, 'Status konnte nicht geladen werden') }, { status: 500 });
   }
 }
