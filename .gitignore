@@ -48,3 +48,6 @@ next-env.d.ts
 /dev.db-journal
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# personal deploy compose file with inlined secrets (see README ZimaOS section)
+docker-compose.zimaos.yml
