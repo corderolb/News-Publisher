@@ -1,8 +1,9 @@
 # For installing a published release - no source checkout needed, just this
-# file plus a .env (see .env.example in the repo, or ask for a copy).
+# file plus a .env (see .env.example in the repo, or ask for a copy). The
+# image is public (no docker login needed) even though the source repo
+# itself stays private.
 #
 # Usage:
-#   docker login ghcr.io -u <your-github-username>   # needs a PAT with read:packages
 #   docker compose -f docker-compose.prod.yml pull
 #   docker compose -f docker-compose.prod.yml up -d
 #

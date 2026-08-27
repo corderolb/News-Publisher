@@ -8,11 +8,9 @@ via API-Key) neu und verwaltet Veröffentlichung + Newsletter-Versand.
 ## Installation via Docker (empfohlen)
 
 Ohne Source-Checkout, nur `docker-compose.prod.yml` und eine `.env` nötig.
+Das Image ist öffentlich (kein Login nötig) - das Repo selbst bleibt privat.
 
 ```bash
-# Einmalig: Zugriff auf das private Image freischalten
-docker login ghcr.io -u <dein-github-username>   # Passwort: Personal Access Token mit "read:packages"
-
 # .env anlegen (siehe .env.example in diesem Repo als Vorlage)
 cp .env.example .env
 # ... .env ausfuellen (LMSTUDIO_BASE_URL, SMTP, API-Keys, ...) ...
