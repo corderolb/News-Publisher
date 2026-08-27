@@ -1,0 +1,27 @@
+# For installing a published release - no source checkout needed, just this
+# file plus a .env (see .env.example in the repo, or ask for a copy).
+#
+# Usage:
+#   docker login ghcr.io -u <your-github-username>   # needs a PAT with read:packages
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Update to a new release the same way: pull again, then up -d again -
+# migrations apply automatically on start, existing data is preserved.
+services:
+  app:
+    image: ghcr.io/corderolb/news-publisher:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "file:/app/data/production.db"
+    volumes:
+      - news-publisher-data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  news-publisher-data:

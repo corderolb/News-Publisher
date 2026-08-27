@@ -1,3 +1,6 @@
+# For building and running from this source checkout (development, or
+# building a release yourself). To install a published release without the
+# source, use docker-compose.prod.yml instead.
 services:
   app:
     build: .

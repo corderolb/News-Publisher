@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# News-Publisher
 
-## Getting Started
+AI-gestütztes News-Rewriting und Publishing-Tool (Next.js 16 + Prisma 7 +
+SQLite). Aggregiert Artikel aus RSS/HTML-Quellen, bewertet und schreibt sie
+über ein konfigurierbares LLM (LM Studio lokal, oder OpenAI/OpenRouter/Ollama
+via API-Key) neu und verwaltet Veröffentlichung + Newsletter-Versand.
 
-First, run the development server:
+## Installation via Docker (empfohlen)
+
+Ohne Source-Checkout, nur `docker-compose.prod.yml` und eine `.env` nötig.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Einmalig: Zugriff auf das private Image freischalten
+docker login ghcr.io -u <dein-github-username>   # Passwort: Personal Access Token mit "read:packages"
+
+# .env anlegen (siehe .env.example in diesem Repo als Vorlage)
+cp .env.example .env
+# ... .env ausfuellen (LMSTUDIO_BASE_URL, SMTP, API-Keys, ...) ...
+
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App danach erreichbar unter http://localhost:3000. LLM-Provider (LM Studio,
+OpenAI, OpenRouter, Ollama, ...) werden anschliessend unter
+`/admin/einstellungen` konfiguriert - kein Rebuild noetig, um einen Provider
+zu wechseln.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Updates einspielen
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
 
-## Learn More
+Datenbank-Migrationen werden beim Start automatisch angewendet, bestehende
+Daten bleiben erhalten.
 
-To learn more about Next.js, take a look at the following resources:
+### Neues Release veröffentlichen (für Maintainer)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+git tag v1.1.0
+git push --tags
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Das löst den GitHub-Actions-Workflow (`.github/workflows/docker-publish.yml`)
+aus, der das Image baut und nach `ghcr.io/corderolb/news-publisher` pusht
+(getaggt mit der Versionsnummer und `latest`).
 
-## Deploy on Vercel
+## Lokale Entwicklung
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Details zu Docker-Build aus dem Source-Checkout (statt vorgefertigtem Image):
+`docker-compose.yml` + `Dockerfile`.
