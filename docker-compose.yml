@@ -23,6 +23,19 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    networks:
+      - default
 
 volumes:
   news-publisher-data:
+
+# See docker-compose.prod.yml for why this is here: Tailscale's WireGuard
+# tunnel uses MTU 1280, below Docker's default bridge MTU (1500) - if any
+# provider is only reachable via a Tailscale IP, this avoids a PMTUD
+# blackhole that otherwise shows up as a connection that opens fine but
+# times out reading a longer response.
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1280
