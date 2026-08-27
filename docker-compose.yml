@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    image: news-publisher:latest
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      # Points the app at the SQLite file inside the mounted volume below,
+      # not the path in .env.example (which is for local `npm run dev`).
+      DATABASE_URL: "file:/app/data/production.db"
+    volumes:
+      - news-publisher-data:/app/data
+    # Lets the container reach an LM Studio instance running on the HOST
+    # machine via http://host.docker.internal:1234/v1 (set LMSTUDIO_BASE_URL
+    # to that in .env). Docker Desktop (Windows/Mac) provides this
+    # automatically; on Linux hosts this extra_hosts entry is what makes it
+    # resolve. If LM Studio isn't on the host, this line is harmless.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  news-publisher-data:

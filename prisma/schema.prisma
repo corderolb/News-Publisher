@@ -1,0 +1,295 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum SourceType {
+  RSS
+  HTML
+}
+
+enum ArticleStatus {
+  PENDING
+  GENERATED
+  REVIEW
+  PUBLISHED
+  FAILED
+}
+
+enum JobRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum RadarItemStatus {
+  DISCOVERED
+  SCORED
+  ASSIGNED
+  WRITING
+  DONE
+  SKIPPED
+  FAILED
+}
+
+enum NewsletterSendStatus {
+  SENT
+  FAILED
+}
+
+enum NewsletterCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model Source {
+  id                 String    @id @default(cuid())
+  name               String
+  url                String
+  type               SourceType @default(RSS)
+  category           String     @default("general")
+  maxItemsPerRun     Int        @default(5)
+  extractFullArticle Boolean    @default(true)
+  active             Boolean    @default(true)
+  articles           Article[]
+  radarItems         RadarQueueItem[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model AuthorProfile {
+  id           String    @id @default(cuid())
+  name         String
+  bio          String?
+  tone         String    @default("Sachlich, klar, journalistisch")
+  instructions String?
+  isDefault    Boolean   @default(false)
+  active       Boolean   @default(true)
+  articles     Article[]
+  radarItems   RadarQueueItem[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Article {
+  id               String        @id @default(cuid())
+  sourceId         String
+  source           Source        @relation(fields: [sourceId], references: [id])
+  authorId         String?
+  author           AuthorProfile? @relation(fields: [authorId], references: [id])
+  originalUrl      String        @unique
+  slug             String        @unique
+  originalTitle    String
+  originalContent  String?
+  generatedTitle   String?
+  generatedExcerpt String?
+  generatedContent String?
+  seoTitle         String?
+  keywords         String?
+  researchNotes    String?
+  citations        String?
+  qualityScore     Int?
+  scoreBreakdown   String?
+  titleEmbedding   String?
+  status           ArticleStatus @default(PENDING)
+  publishedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  radarItem        RadarQueueItem?
+
+  @@index([createdAt])
+}
+
+model JobRun {
+  id            String       @id @default(cuid())
+  status        JobRunStatus @default(QUEUED)
+  mode          String       @default("publish")
+  topic         String?
+  priority      Int          @default(0)
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  currentStep   String?
+  totalItems    Int          @default(0)
+  processed     Int          @default(0)
+  failed        Int          @default(0)
+  message       String?
+  durationMs    Int?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  events        JobEvent[]
+  radarItems    RadarQueueItem[]
+}
+
+// One row per discovered candidate, tracked through its whole lifecycle:
+// DISCOVERED (scan found it) -> SCORED (editorial-priority prompt ran) ->
+// ASSIGNED (author matched) -> WRITING -> DONE/FAILED. SKIPPED covers both
+// duplicate-on-discovery and below-minScore cases (see skipReason).
+model RadarQueueItem {
+  id            String          @id @default(cuid())
+  sourceId      String
+  source        Source          @relation(fields: [sourceId], references: [id])
+  originalUrl   String          @unique
+  title         String
+  status        RadarItemStatus @default(DISCOVERED)
+  score         Int?
+  scoreReason   String?
+  authorId      String?
+  author        AuthorProfile?  @relation(fields: [authorId], references: [id])
+  authorReason  String?
+  articleId     String?         @unique
+  article       Article?        @relation(fields: [articleId], references: [id])
+  skipReason    String?
+  failReason    String?
+  jobRunId      String?
+  jobRun        JobRun?         @relation(fields: [jobRunId], references: [id])
+  discoveredAt  DateTime        @default(now())
+  scoredAt      DateTime?
+  assignedAt    DateTime?
+  writtenAt     DateTime?
+  updatedAt     DateTime        @updatedAt
+
+  @@index([status])
+  @@index([discoveredAt])
+}
+
+// Singleton row (findFirst, same pattern as ModelSettings) for the News
+// Radar's own configuration. lastScanAt/consecutiveFailures are persisted
+// state, not just settings - see radar-scan.ts and radar-write.ts for why
+// (in-memory counters don't survive across the one-JobRun-per-item model).
+model RadarSettings {
+  id                  String    @id @default(cuid())
+  active              Boolean   @default(true)
+  scanIntervalMinutes Int       @default(15)
+  dailyArticleLimit   Int       @default(20)
+  publishDirectly     Boolean   @default(false)
+  minScore            Int       @default(0)
+  consecutiveFailures Int       @default(0)
+  lastScanAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model JobEvent {
+  id          String   @id @default(cuid())
+  jobRunId    String
+  jobRun      JobRun   @relation(fields: [jobRunId], references: [id], onDelete: Cascade)
+  step        String
+  message     String
+  createdAt   DateTime @default(now())
+}
+
+model NewsletterConfig {
+  id              String            @id @default(cuid())
+  name            String            @default("Newsletter")
+  active          Boolean           @default(false)
+  cadence         NewsletterCadence @default(WEEKLY)
+  sendHour        String            @default("08:00")
+  recipients      String            @default("")
+  subjectTemplate String            @default("Deine Top-Artikel")
+  topN            Int               @default(5)
+  lastSentAt      DateTime?
+  nextSendAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  sends           NewsletterSend[]
+}
+
+model NewsletterSend {
+  id          String               @id @default(cuid())
+  configId    String
+  config      NewsletterConfig     @relation(fields: [configId], references: [id], onDelete: Cascade)
+  status      NewsletterSendStatus
+  recipients  String
+  subject     String
+  articleIds  String
+  error       String?
+  createdAt   DateTime             @default(now())
+}
+
+model ResearchTopicSnapshot {
+  id             String   @id @default(cuid())
+  preset         String
+  focusThemes    String
+  primaryDomain  String
+  payload        String
+  generatedAt    DateTime
+  createdAt      DateTime @default(now())
+  usedAI         Boolean  @default(false)
+  aiDurationMs   Int?
+  aiIncluded     Int      @default(0)
+  aiRejected     Int      @default(0)
+  aiError        String?
+  fallbackReason String?
+  inputTopics    Int      @default(0)
+
+  @@index([preset, focusThemes, generatedAt])
+}
+
+// One row per completed FILMRADAR comparison run (scheduled or manual
+// "Jetzt aktualisieren"). The admin page always reads the newest row instead
+// of recomputing live, so opening the page doesn't trigger a fresh CMS login
+// + scrape + OMDb calls every single time.
+model FilmRadarSnapshot {
+  id           String   @id @default(cuid())
+  generatedAt  DateTime @default(now())
+  totalVdf     Int
+  totalMissing Int
+  payload      String
+  errorMessage String?
+}
+
+// Admin-configured LLM connection (name + OpenAI-compatible base URL +
+// optional API key). One generic shape covers LM Studio, Ollama, OpenAI,
+// OpenRouter, and anything else that speaks the OpenAI HTTP API - see
+// llm-settings.ts. API keys are stored in plaintext, consistent with the
+// rest of the app's current security posture (no admin auth exists yet).
+model LlmProvider {
+  id           String          @id @default(cuid())
+  name         String
+  baseURL      String
+  apiKey       String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  primaryFor   ModelSettings[] @relation("PrimaryProvider")
+  embeddingFor ModelSettings[] @relation("EmbeddingProvider")
+}
+
+// Singleton row (always read/written via findFirst - never more than one
+// row exists) holding the admin's explicit model choices. A null
+// provider/model means "use the automatic/env fallback" (see
+// llm-settings.ts) rather than a hardcoded model id, so the app keeps
+// working if that model is ever unloaded, renamed, or its provider deleted.
+model ModelSettings {
+  id                  String       @id @default(cuid())
+  primaryProviderId   String?
+  primaryProvider     LlmProvider? @relation("PrimaryProvider", fields: [primaryProviderId], references: [id], onDelete: SetNull)
+  primaryModel        String?
+  embeddingProviderId String?
+  embeddingProvider   LlmProvider? @relation("EmbeddingProvider", fields: [embeddingProviderId], references: [id], onDelete: SetNull)
+  embeddingModel      String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+// Admin-editable overrides for the app's LLM prompt templates. Display
+// metadata (label, category, description, usage context, variable
+// reference) lives in code (src/lib/prompt-registry.ts) so it can't be
+// corrupted by editing - this table only stores the override text itself.
+// No row for a key means "using the built-in default" (see prompts.ts).
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  template  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

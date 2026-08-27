@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5f7fb;
+  --surface: #ffffff;
+  --surface-alt: #f6f8fc;
+  --foreground: #1f2937;
+  --muted: #64748b;
+  --primary: #2f5fbf;
+  --primary-strong: #234a96;
+  --accent: #2b7bbb;
+  --ok-bg: #dcfce7;
+  --ok-fg: #166534;
+  --off-bg: #fee2e2;
+  --off-fg: #991b1b;
+  --border: #dbe3ef;
+  --sidebar-bg: #ffffff;
+  --sidebar-muted: #94a3b8;
+  --sidebar-text: #334155;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sora);
+  --font-mono: var(--font-ibm-mono);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sora), "Segoe UI", sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
