@@ -1,0 +1,47 @@
+name: CI
+
+# Lint/typecheck/build gate for every push and PR against main. Separate
+# from docker-publish.yml (which only fires on version tags) so a bad commit
+# on main is caught immediately instead of only surfacing when someone cuts
+# a release.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # `/` uses ISR and queries Prisma directly, so `next build` needs a
+      # real, schema-correct SQLite file to prerender against (mirrors the
+      # Dockerfile's builder stage).
+      - name: Prepare build database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: "file:./ci.db"
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: "file:./ci.db"

@@ -1,12 +1,13 @@
 {
-  "name": "temp-app",
-  "version": "0.1.0",
+  "name": "news-publisher",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "prisma generate && next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.44",
