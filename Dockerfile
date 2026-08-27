@@ -18,6 +18,14 @@ FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# `/` uses ISR (revalidate = 60s) and queries Prisma directly, so `next
+# build` needs a real, schema-correct SQLite file to prerender it against -
+# an empty one is fine (mirrors what a fresh install looks like before any
+# article exists). ENV (not a one-off RUN prefix) so it's still set for the
+# `npm run build` step below; this stage's filesystem, build.db included,
+# is never copied into the runner stage.
+ENV DATABASE_URL="file:./build.db"
+RUN npx prisma migrate deploy
 RUN npm run build
 
 # The runtime image ships the full node_modules (not just Next's traced
