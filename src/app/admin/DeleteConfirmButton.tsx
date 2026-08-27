@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Modal from "@/components/ui/Modal";
 
 type DeleteConfirmButtonProps = {
   triggerLabel?: string;
@@ -12,6 +13,8 @@ type DeleteConfirmButtonProps = {
   confirmClassName?: string;
 };
 
+// Must be rendered inside the <form action={deleteAction}> it confirms for -
+// the confirm button is a plain type="submit" that submits that form.
 export default function DeleteConfirmButton({
   triggerLabel = "Loeschen",
   title = "Bitte bestaetigen",
@@ -29,30 +32,22 @@ export default function DeleteConfirmButton({
         {triggerLabel}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={() => setOpen(false)}>
-          <div
-            className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <h3 className="text-base font-extrabold text-[var(--primary-strong)]">{title}</h3>
-            <p className="mt-2 text-sm text-[var(--foreground)]">{message}</p>
+      <Modal open={open} onClose={() => setOpen(false)} title={title} maxWidth="md" compact>
+        <p className="text-sm text-[var(--foreground)]">{message}</p>
 
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--muted)]"
-              >
-                {cancelLabel}
-              </button>
-              <button type="submit" className={confirmClassName}>
-                {confirmLabel}
-              </button>
-            </div>
-          </div>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="rounded-md border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--muted)]"
+          >
+            {cancelLabel}
+          </button>
+          <button type="submit" className={confirmClassName}>
+            {confirmLabel}
+          </button>
         </div>
-      )}
+      </Modal>
     </>
   );
 }

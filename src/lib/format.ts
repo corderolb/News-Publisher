@@ -1,3 +1,13 @@
+// Shared absolute date+time formatting - was reimplemented identically
+// (new Date(value).toLocaleString()) in 4 separate files under 3 different
+// names (formatDate, formatDateTime).
+export function formatDateTime(value?: string | Date | null): string {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
+}
+
 // Shared relative-time formatting for both past (Hot Topics "vor 3 Std.")
 // and future (Job-Zeitplan "in 3 Std.") timestamps.
 export function formatRelativeTime(value?: string | Date | null): string {
