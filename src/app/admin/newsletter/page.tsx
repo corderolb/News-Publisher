@@ -17,6 +17,9 @@ import {
 } from '@/lib/newsletter';
 import NewsletterOverlay from '@/app/admin/newsletter/NewsletterOverlay';
 import NewsletterEditForm from '@/app/admin/newsletter/NewsletterEditForm';
+import PageContainer from '@/components/ui/PageContainer';
+import Badge from '@/components/ui/Badge';
+import { formatDateTime } from '@/lib/format';
 
 type NewsletterSearchParams = {
   notice?: string;
@@ -29,11 +32,6 @@ async function resolveSiteUrl(): Promise<string> {
   const host = headerList.get('host');
   const proto = headerList.get('x-forwarded-proto') || 'http';
   return host ? `${proto}://${host}` : '';
-}
-
-function formatDateTime(value?: Date | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
 }
 
 function parseCadence(raw: FormDataEntryValue | null): NewsletterCadenceValue {
@@ -213,7 +211,7 @@ export default async function NewsletterPage({ searchParams }: { searchParams: P
   const activeCount = configs.filter((c) => c.active).length;
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
         <div className="relative overflow-hidden bg-gradient-to-br from-[var(--primary-strong)] via-[var(--primary)] to-[var(--accent)] px-6 py-5 text-white">
           <div className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl" aria-hidden />
@@ -291,7 +289,31 @@ export default async function NewsletterPage({ searchParams }: { searchParams: P
             <div className="border-b border-[var(--border)] px-5 py-3">
               <h3 className="text-sm font-extrabold uppercase tracking-wide text-[var(--primary-strong)]">Versand-Historie</h3>
             </div>
-            <div className="overflow-x-auto">
+
+            <div className="space-y-3 p-4 md:hidden">
+              {sends.map((send) => (
+                <article key={send.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="font-semibold text-[var(--foreground)]">{send.config?.name || '-'}</p>
+                    <span title={send.error || undefined}>
+                      <Badge tone={send.status === 'SENT' ? 'success' : 'danger'}>
+                        {send.status === 'SENT' ? 'Versendet' : 'Fehlgeschlagen'}
+                      </Badge>
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{formatDateTime(send.createdAt)}</p>
+                  <p className="mt-2 text-sm text-[var(--foreground)]">{send.subject}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{send.recipients || '-'}</p>
+                </article>
+              ))}
+              {sends.length === 0 && (
+                <p className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+                  Noch kein Newsletter versendet.
+                </p>
+              )}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full">
                 <thead className="bg-[var(--surface-alt)]">
                   <tr>
@@ -308,15 +330,10 @@ export default async function NewsletterPage({ searchParams }: { searchParams: P
                       <td className="px-5 py-3 text-sm text-[var(--muted)]">{formatDateTime(send.createdAt)}</td>
                       <td className="px-5 py-3 text-sm text-[var(--foreground)]">{send.config?.name || '-'}</td>
                       <td className="px-5 py-3 text-sm">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${
-                            send.status === 'SENT'
-                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                              : 'bg-rose-50 text-rose-700 ring-rose-200'
-                          }`}
-                          title={send.error || undefined}
-                        >
-                          {send.status === 'SENT' ? 'Versendet' : 'Fehlgeschlagen'}
+                        <span title={send.error || undefined}>
+                          <Badge tone={send.status === 'SENT' ? 'success' : 'danger'}>
+                            {send.status === 'SENT' ? 'Versendet' : 'Fehlgeschlagen'}
+                          </Badge>
                         </span>
                       </td>
                       <td className="px-5 py-3 text-sm text-[var(--foreground)]">{send.subject}</td>
@@ -336,6 +353,6 @@ export default async function NewsletterPage({ searchParams }: { searchParams: P
           </div>
         </div>
       </section>
-    </div>
+    </PageContainer>
   );
 }

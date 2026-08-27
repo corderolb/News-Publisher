@@ -14,6 +14,7 @@ import {
 } from "@/app/admin/JobIcons";
 import { getPromptDefinition } from "@/lib/prompt-registry";
 import type { ProcessDefinition, ProcessStep, ProcessStepType } from "@/lib/process-registry";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 
 const STEP_ICON_BY_LABEL: Array<{ match: RegExp; icon: typeof SearchIcon }> = [
   { match: /laden|pool/i, icon: DatabaseIcon },
@@ -31,26 +32,26 @@ function iconForStep(step: ProcessStep) {
   return hit?.icon || TargetIcon;
 }
 
-const TYPE_STYLE: Record<ProcessStepType, { ring: string; bg: string; text: string; badge: string; badgeLabel: string }> = {
+const TYPE_STYLE: Record<ProcessStepType, { ring: string; bg: string; text: string; badge: BadgeTone; badgeLabel: string }> = {
   prompt: {
     ring: "ring-indigo-200",
     bg: "bg-indigo-100",
     text: "text-indigo-900",
-    badge: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+    badge: "info",
     badgeLabel: "KI-Prompt",
   },
   action: {
     ring: "ring-slate-200",
     bg: "bg-slate-100",
     text: "text-slate-700",
-    badge: "bg-slate-50 text-slate-600 ring-slate-200",
+    badge: "neutral",
     badgeLabel: "Aktion",
   },
   decision: {
     ring: "ring-amber-200",
     bg: "bg-amber-100",
     text: "text-amber-900",
-    badge: "bg-amber-50 text-amber-700 ring-amber-200",
+    badge: "warning",
     badgeLabel: "Entscheidung",
   },
 };
@@ -104,10 +105,10 @@ export default function ProcessFlow({ process }: { process: ProcessDefinition })
                 <div className="min-w-0 flex-1 pb-0.5">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11px] font-bold text-[var(--muted)]">Schritt {index + 1}</span>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${style.badge}`}>
+                    <Badge tone={style.badge} className="gap-1">
                       {step.type === "decision" && <ForkIcon className="h-2.5 w-2.5" />}
                       {style.badgeLabel}
-                    </span>
+                    </Badge>
                   </div>
 
                   <p className="mt-1 text-sm font-bold text-[var(--foreground)]">{step.label}</p>
@@ -125,7 +126,7 @@ export default function ProcessFlow({ process }: { process: ProcessDefinition })
                       href={`/admin/prompts#${promptDefinition.key}`}
                       className="mt-2 inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"
                     >
-                      Prompt "{promptDefinition.label}" ansehen
+                      Prompt &quot;{promptDefinition.label}&quot; ansehen
                       <ChevronIcon className="h-3 w-3 -rotate-90" />
                     </Link>
                   )}

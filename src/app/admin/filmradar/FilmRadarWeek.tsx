@@ -1,17 +1,13 @@
 import type { ComparedFilm } from "@/lib/filmradar";
 import { CheckIcon, WarningIcon } from "@/app/admin/JobIcons";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
 
 function ScorePill({ score }: { score: number | null | undefined }) {
   if (score === null || score === undefined) {
     return <span className="text-xs text-[var(--muted)]">kein Score</span>;
   }
-  const tone =
-    score >= 70 ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : score >= 40 ? "bg-amber-50 text-amber-700 ring-amber-200" : "bg-slate-50 text-slate-600 ring-slate-200";
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${tone}`}>
-      {score} / 100
-    </span>
-  );
+  const tone: BadgeTone = score >= 70 ? "success" : score >= 40 ? "warning" : "neutral";
+  return <Badge tone={tone}>{score} / 100</Badge>;
 }
 
 export default function FilmRadarWeek({ title, films, scored }: { title: string; films: ComparedFilm[]; scored: boolean }) {

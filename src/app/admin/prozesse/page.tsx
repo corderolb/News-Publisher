@@ -1,10 +1,11 @@
 import ProcessFlow from "@/app/admin/prozesse/ProcessFlow";
 import { PROCESS_DEFINITIONS } from "@/lib/process-registry";
 import { ForkIcon, MessageIcon, TargetIcon } from "@/app/admin/JobIcons";
+import PageContainer from "@/components/ui/PageContainer";
 
 export default function ProzessePage() {
   return (
-    <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <div className="mb-6 max-w-2xl">
         <p className="text-sm leading-relaxed text-[var(--muted)]">
           Der genaue Ablauf jedes automatisierten Prozesses im System - in welcher Reihenfolge welche Schritte
@@ -31,6 +32,6 @@ export default function ProzessePage() {
           <ProcessFlow key={process.key} process={process} />
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }

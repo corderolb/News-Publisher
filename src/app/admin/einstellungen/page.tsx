@@ -10,10 +10,10 @@ import {
 import { prisma } from "@/lib/prisma";
 import { CheckIcon, DatabaseIcon, WandIcon, WarningIcon } from "@/app/admin/JobIcons";
 import RefreshButton from "@/app/admin/einstellungen/RefreshButton";
-import ProviderOverlay from "@/app/admin/einstellungen/ProviderOverlay";
-import ProviderEditOverlay from "@/app/admin/einstellungen/ProviderEditOverlay";
+import ProviderFormOverlay from "@/app/admin/einstellungen/ProviderFormOverlay";
 import ModelRoleSelector from "@/app/admin/einstellungen/ModelRoleSelector";
 import DeleteConfirmButton from "@/app/admin/DeleteConfirmButton";
+import PageContainer from "@/components/ui/PageContainer";
 
 export default async function EinstellungenPage() {
   async function addProviderAction(formData: FormData) {
@@ -89,7 +89,7 @@ export default async function EinstellungenPage() {
   const envDefaultReachable = envDefaultModels.length > 0;
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <div className="mb-6 max-w-2xl">
         <p className="text-sm leading-relaxed text-[var(--muted)]">
           LLM-Provider verwalten (LM Studio, OpenAI, OpenRouter, Ollama oder ein beliebiger
@@ -101,7 +101,7 @@ export default async function EinstellungenPage() {
       <div className="mb-8 rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Provider-Verwaltung</p>
-          <ProviderOverlay addProviderAction={addProviderAction} />
+          <ProviderFormOverlay action={addProviderAction} />
         </div>
 
         <div
@@ -130,50 +130,83 @@ export default async function EinstellungenPage() {
         </div>
 
         {providerRows.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-            <table className="min-w-full">
-              <thead className="bg-[var(--surface-alt)]">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Base URL</th>
-                  <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">API-Key</th>
-                  <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Aktionen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {providerRows.map((provider) => (
-                  <tr key={provider.id} className="border-t border-[var(--border)]">
-                    <td className="px-4 py-3 text-sm font-semibold text-[var(--foreground)]">{provider.name}</td>
-                    <td className="px-4 py-3 text-xs text-[var(--muted)]">{provider.baseURL}</td>
-                    <td className="px-4 py-3 text-xs text-[var(--muted)]">
-                      {provider.apiKey ? `${"*".repeat(6)}${provider.apiKey.slice(-4)}` : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <ProviderEditOverlay
-                          provider={{
-                            id: provider.id,
-                            name: provider.name,
-                            baseURL: provider.baseURL,
-                            hasApiKey: !!provider.apiKey,
-                          }}
-                          updateProviderAction={updateProviderAction}
-                        />
-                        <form action={deleteProviderAction}>
-                          <input type="hidden" name="id" value={provider.id} />
-                          <DeleteConfirmButton
-                            triggerLabel="Loeschen"
-                            title="Provider loeschen?"
-                            message={`"${provider.name}" wird entfernt. Rollen, die aktuell diesen Provider verwenden, fallen automatisch auf den Server-Standard zurueck.`}
-                          />
-                        </form>
-                      </div>
-                    </td>
+          <>
+            <div className="space-y-3 md:hidden">
+              {providerRows.map((provider) => (
+                <div key={provider.id} className="rounded-xl border border-[var(--border)] p-3">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{provider.name}</p>
+                  <p className="mt-1 break-all text-xs text-[var(--muted)]">{provider.baseURL}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    API-Key: {provider.apiKey ? `${"*".repeat(6)}${provider.apiKey.slice(-4)}` : "-"}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <ProviderFormOverlay
+                      action={updateProviderAction}
+                      provider={{
+                        id: provider.id,
+                        name: provider.name,
+                        baseURL: provider.baseURL,
+                        hasApiKey: !!provider.apiKey,
+                      }}
+                    />
+                    <form action={deleteProviderAction}>
+                      <input type="hidden" name="id" value={provider.id} />
+                      <DeleteConfirmButton
+                        triggerLabel="Loeschen"
+                        title="Provider loeschen?"
+                        message={`"${provider.name}" wird entfernt. Rollen, die aktuell diesen Provider verwenden, fallen automatisch auf den Server-Standard zurueck.`}
+                      />
+                    </form>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-xl border border-[var(--border)] md:block">
+              <table className="min-w-full">
+                <thead className="bg-[var(--surface-alt)]">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Base URL</th>
+                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">API-Key</th>
+                    <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Aktionen</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {providerRows.map((provider) => (
+                    <tr key={provider.id} className="border-t border-[var(--border)]">
+                      <td className="px-4 py-3 text-sm font-semibold text-[var(--foreground)]">{provider.name}</td>
+                      <td className="px-4 py-3 text-xs text-[var(--muted)]">{provider.baseURL}</td>
+                      <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                        {provider.apiKey ? `${"*".repeat(6)}${provider.apiKey.slice(-4)}` : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <ProviderFormOverlay
+                            action={updateProviderAction}
+                            provider={{
+                              id: provider.id,
+                              name: provider.name,
+                              baseURL: provider.baseURL,
+                              hasApiKey: !!provider.apiKey,
+                            }}
+                          />
+                          <form action={deleteProviderAction}>
+                            <input type="hidden" name="id" value={provider.id} />
+                            <DeleteConfirmButton
+                              triggerLabel="Loeschen"
+                              title="Provider loeschen?"
+                              message={`"${provider.name}" wird entfernt. Rollen, die aktuell diesen Provider verwenden, fallen automatisch auf den Server-Standard zurueck.`}
+                            />
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
         {providerRows.length === 0 && (
           <p className="text-sm text-[var(--muted)]">
@@ -254,6 +287,6 @@ export default async function EinstellungenPage() {
           Einstellungen speichern
         </button>
       </form>
-    </div>
+    </PageContainer>
   );
 }

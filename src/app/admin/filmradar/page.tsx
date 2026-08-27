@@ -9,6 +9,8 @@ import FilmRadarWeek from "@/app/admin/filmradar/FilmRadarWeek";
 import RefreshFilmRadarButton from "@/app/admin/filmradar/RefreshFilmRadarButton";
 import { WarningIcon } from "@/app/admin/JobIcons";
 import { formatRelativeTime } from "@/lib/format";
+import StatGrid from "@/components/ui/StatGrid";
+import PageContainer from "@/components/ui/PageContainer";
 
 function formatWeekDate(iso: string): string {
   return new Date(iso).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
@@ -38,7 +40,7 @@ export default async function FilmRadarPage() {
   const { weeks, totalVdf, totalMissing, generatedAt, errorMessage } = snapshot;
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-sm leading-relaxed text-[var(--muted)]">
@@ -89,22 +91,15 @@ export default async function FilmRadarPage() {
 
       {!errorMessage && (
         <>
-          <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4">
-            <div>
-              <p className="text-lg font-extrabold leading-none text-[var(--primary-strong)]">{totalVdf}</p>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Filme auf VDF-Liste</p>
-            </div>
-            <div className="mx-1 h-8 w-px bg-[var(--border)]" />
-            <div>
-              <p className="text-lg font-extrabold leading-none text-rose-600">{totalMissing}</p>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Fehlen auf Spielfilm.de</p>
-            </div>
-            <div className="mx-1 h-8 w-px bg-[var(--border)]" />
-            <div>
-              <p className="text-lg font-extrabold leading-none text-emerald-600">{weeks.length}</p>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Startwochen</p>
-            </div>
-          </div>
+          <StatGrid
+            className="mb-8"
+            columns={3}
+            stats={[
+              { label: "Filme auf VDF-Liste", value: totalVdf },
+              { label: "Fehlen auf Spielfilm.de", value: totalMissing, tone: "danger" },
+              { label: "Startwochen", value: weeks.length, tone: "success" },
+            ]}
+          />
 
           <div className="space-y-6">
             {weeks.map((week, index) => (
@@ -123,6 +118,6 @@ export default async function FilmRadarPage() {
           </div>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

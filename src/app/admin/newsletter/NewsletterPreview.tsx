@@ -57,7 +57,7 @@ export default function NewsletterPreview({ html, articleCount }: { html: string
         </div>
       ) : (
         <div className="mt-4 flex justify-center overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-alt)] py-6">
-          <div className="w-[375px] shrink-0 overflow-hidden rounded-[2.25rem] border-[8px] border-slate-900 bg-slate-900 shadow-xl">
+          <div className="w-full max-w-[375px] overflow-hidden rounded-[2.25rem] border-[8px] border-slate-900 bg-slate-900 shadow-xl">
             <div className="flex h-6 items-center justify-center bg-slate-900">
               <div className="h-1 w-16 rounded-full bg-slate-700" />
             </div>

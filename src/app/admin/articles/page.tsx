@@ -3,26 +3,17 @@ import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { ArticleStatus, Prisma } from '@prisma/client';
 import DeleteConfirmButton from '@/app/admin/DeleteConfirmButton';
+import { formatDateTime } from '@/lib/format';
+import Badge, { type BadgeTone } from '@/components/ui/Badge';
+import StatGrid from '@/components/ui/StatGrid';
+import PageContainer from '@/components/ui/PageContainer';
+import { Label, SelectInput, TextInput } from '@/components/ui/Field';
 
-function formatDate(value: Date | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
-}
-
-function statusBadge(status: ArticleStatus) {
-  if (status === 'PUBLISHED') {
-    return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-  }
-
-  if (status === 'REVIEW') {
-    return 'bg-amber-50 text-amber-700 border-amber-200';
-  }
-
-  if (status === 'FAILED') {
-    return 'bg-rose-50 text-rose-700 border-rose-200';
-  }
-
-  return 'bg-slate-100 text-slate-700 border-slate-200';
+function statusTone(status: ArticleStatus): BadgeTone {
+  if (status === 'PUBLISHED') return 'success';
+  if (status === 'REVIEW') return 'warning';
+  if (status === 'FAILED') return 'danger';
+  return 'neutral';
 }
 
 function parseScoreExplanation(raw?: string | null) {
@@ -169,95 +160,55 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
   const failedCount = articles.filter((article) => article.status === 'FAILED').length;
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <p className="text-sm text-[var(--muted)]">Lesen, Status steuern und Scoring mit Begruendung nachvollziehen.</p>
-          <div className="grid grid-cols-4 gap-2 text-xs">
-            <div className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-center">
-              <p className="font-semibold text-[var(--muted)]">Treffer</p>
-              <p className="text-base font-extrabold text-[var(--primary-strong)]">{filteredCount}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-center">
-              <p className="font-semibold text-[var(--muted)]">Publish</p>
-              <p className="text-base font-extrabold text-emerald-700">{publishedCount}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-center">
-              <p className="font-semibold text-[var(--muted)]">Review</p>
-              <p className="text-base font-extrabold text-amber-700">{reviewCount}</p>
-            </div>
-            <div className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-center">
-              <p className="font-semibold text-[var(--muted)]">Failed</p>
-              <p className="text-base font-extrabold text-rose-700">{failedCount}</p>
-            </div>
-          </div>
+          <StatGrid
+            columns={4}
+            stats={[
+              { label: 'Treffer', value: filteredCount },
+              { label: 'Publish', value: publishedCount, tone: 'success' },
+              { label: 'Review', value: reviewCount, tone: 'warning' },
+              { label: 'Failed', value: failedCount, tone: 'danger' },
+            ]}
+          />
         </div>
 
-        <form method="GET" className="mt-4 grid gap-3 rounded-xl border border-[var(--border)] bg-white p-4 md:grid-cols-12">
+        <form method="GET" className="mt-4 grid gap-3 rounded-xl border border-[var(--border)] bg-white p-4 sm:grid-cols-2 md:grid-cols-12">
           <div className="md:col-span-3">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Name</label>
-            <input
-              type="text"
-              name="q"
-              defaultValue={query}
-              placeholder="Titel oder Quelle"
-              className="block w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-            />
+            <Label variant="filter">Name</Label>
+            <TextInput type="text" name="q" defaultValue={query} placeholder="Titel oder Quelle" />
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Autor</label>
-            <select
-              name="author"
-              defaultValue={authorFilter || 'all'}
-              className="block w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-            >
+            <Label variant="filter">Autor</Label>
+            <SelectInput name="author" defaultValue={authorFilter || 'all'}>
               <option value="all">Alle</option>
               {authors.map((author) => (
                 <option key={author.id} value={author.id}>{author.name}</option>
               ))}
-            </select>
+            </SelectInput>
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Von</label>
-            <input
-              type="date"
-              name="from"
-              defaultValue={fromDate}
-              className="block w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-            />
+            <Label variant="filter">Von</Label>
+            <TextInput type="date" name="from" defaultValue={fromDate} />
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Bis</label>
-            <input
-              type="date"
-              name="to"
-              defaultValue={toDate}
-              className="block w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-            />
+            <Label variant="filter">Bis</Label>
+            <TextInput type="date" name="to" defaultValue={toDate} />
           </div>
 
           <div className="md:col-span-1">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Min Score</label>
-            <input
-              type="number"
-              name="scoreMin"
-              min={0}
-              max={100}
-              defaultValue={scoreMin ?? ''}
-              className="block w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-            />
+            <Label variant="filter">Min Score</Label>
+            <TextInput type="number" name="scoreMin" min={0} max={100} defaultValue={scoreMin ?? ''} />
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Sortierung</label>
-            <select
-              name="sort"
-              defaultValue={sort}
-              className="block w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-            >
+            <Label variant="filter">Sortierung</Label>
+            <SelectInput name="sort" defaultValue={sort}>
               <option value="date_desc">Datum neu bis alt</option>
               <option value="date_asc">Datum alt bis neu</option>
               <option value="name_asc">Name A bis Z</option>
@@ -266,7 +217,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
               <option value="score_asc">Score niedrig bis hoch</option>
               <option value="author_asc">Autor A bis Z</option>
               <option value="author_desc">Autor Z bis A</option>
-            </select>
+            </SelectInput>
           </div>
 
           <div className="md:col-span-12 flex flex-wrap items-center justify-end gap-2">
@@ -287,10 +238,8 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
           return (
             <article key={article.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${statusBadge(article.status)}`}>
-                  {article.status}
-                </span>
-                <span className="text-xs text-[var(--muted)]">{formatDate(article.publishedAt || article.createdAt)}</span>
+                <Badge tone={statusTone(article.status)}>{article.status}</Badge>
+                <span className="text-xs text-[var(--muted)]">{formatDateTime(article.publishedAt || article.createdAt)}</span>
               </div>
 
               <Link href={`/article/${article.slug}`} className="text-sm font-semibold text-[var(--foreground)] hover:underline">
@@ -341,7 +290,7 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
         })}
       </div>
 
-      <div className="mt-4 hidden overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] md:block">
+      <div className="mt-4 hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] md:block">
         <table className="min-w-full table-fixed">
           <thead className="bg-[var(--surface-alt)]">
             <tr>
@@ -364,14 +313,12 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
                     <Link href={`/article/${article.slug}`} className="font-semibold hover:underline">
                       {article.generatedTitle || article.originalTitle}
                     </Link>
-                    <p className="mt-1 text-xs text-[var(--muted)]">{formatDate(article.publishedAt || article.createdAt)}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">{formatDateTime(article.publishedAt || article.createdAt)}</p>
                   </td>
                   <td className="px-4 py-3 text-sm text-[var(--muted)]">{article.source.name}</td>
                   <td className="px-4 py-3 text-sm text-[var(--muted)]">{article.author?.name || 'System-Redaktion'}</td>
                   <td className="px-4 py-3 text-sm">
-                    <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${statusBadge(article.status)}`}>
-                      {article.status}
-                    </span>
+                    <Badge tone={statusTone(article.status)}>{article.status}</Badge>
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold text-[var(--foreground)]">{article.qualityScore ?? '-'}</td>
                   <td className="px-4 py-3 text-xs text-[var(--muted)]">{explanation}</td>
@@ -419,6 +366,6 @@ export default async function ArticlesPage({ searchParams }: { searchParams: Pro
           </tbody>
         </table>
       </div>
-    </div>
+    </PageContainer>
   );
 }

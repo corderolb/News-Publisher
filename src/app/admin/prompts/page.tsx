@@ -2,6 +2,8 @@ import { revalidatePath } from "next/cache";
 import PromptCard from "@/app/admin/prompts/PromptCard";
 import { listPromptsForAdmin, updatePromptTemplate, resetPromptTemplate } from "@/lib/prompts";
 import type { PromptCategory } from "@/lib/prompt-registry";
+import StatGrid from "@/components/ui/StatGrid";
+import PageContainer from "@/components/ui/PageContainer";
 
 const CATEGORY_ORDER: PromptCategory[] = ["Artikel-Erstellung", "Recherche & Themen", "Newsletter", "Uebersetzung"];
 
@@ -38,7 +40,7 @@ export default async function PromptsPage() {
   const customizedCount = prompts.filter((p) => p.isCustomized).length;
 
   return (
-    <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
           <p className="text-sm leading-relaxed text-[var(--muted)]">
@@ -47,17 +49,13 @@ export default async function PromptsPage() {
             wirken sofort auf den naechsten Lauf, ganz ohne Deployment.
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-4 py-3 shadow-sm">
-          <div className="text-right">
-            <p className="text-lg font-extrabold leading-none text-[var(--primary-strong)]">{prompts.length}</p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Prompts gesamt</p>
-          </div>
-          <div className="mx-1 h-8 w-px bg-[var(--border)]" />
-          <div className="text-right">
-            <p className="text-lg font-extrabold leading-none text-indigo-600">{customizedCount}</p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Angepasst</p>
-          </div>
-        </div>
+        <StatGrid
+          columns={2}
+          stats={[
+            { label: "Prompts gesamt", value: prompts.length },
+            { label: "Angepasst", value: customizedCount, tone: "success" },
+          ]}
+        />
       </div>
 
       <div className="space-y-10">
@@ -80,6 +78,6 @@ export default async function PromptsPage() {
           );
         })}
       </div>
-    </div>
+    </PageContainer>
   );
 }

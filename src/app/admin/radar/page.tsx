@@ -2,6 +2,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { RepeatIcon, LayersIcon, WarningIcon, TargetIcon, PowerIcon, ClockIcon, UserIcon } from "@/app/admin/JobIcons";
 import { formatRelativeTime } from "@/lib/format";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import StatGrid from "@/components/ui/StatGrid";
+import PageContainer from "@/components/ui/PageContainer";
+import SectionCard from "@/app/admin/SectionCard";
 
 async function getOrCreateSettings() {
   const existing = await prisma.radarSettings.findFirst();
@@ -23,11 +27,11 @@ const STATUS_LABEL: Record<string, string> = {
   DISCOVERED: "Entdeckt, wartet auf Bewertung",
 };
 
-const STATUS_TONE: Record<string, string> = {
-  WRITING: "bg-indigo-50 text-indigo-700 ring-indigo-200",
-  ASSIGNED: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  SCORED: "bg-amber-50 text-amber-700 ring-amber-200",
-  DISCOVERED: "bg-slate-50 text-slate-600 ring-slate-200",
+const STATUS_TONE: Record<string, BadgeTone> = {
+  WRITING: "info",
+  ASSIGNED: "success",
+  SCORED: "warning",
+  DISCOVERED: "neutral",
 };
 
 export default async function RadarSettingsPage() {
@@ -118,7 +122,7 @@ export default async function RadarSettingsPage() {
   let assignedIndex = 0;
 
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <div className="mb-6 max-w-2xl">
         <p className="text-sm leading-relaxed text-[var(--muted)]">
           Der News Radar scannt alle aktiven Quellen automatisch, bewertet neue Kandidaten, ordnet sie einem
@@ -127,28 +131,17 @@ export default async function RadarSettingsPage() {
         </p>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <div className="rounded-xl border border-[var(--border)] bg-white p-3.5 text-center">
-          <p className="text-xl font-extrabold text-[var(--primary-strong)]">{backlog.DISCOVERED}</p>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Entdeckt</p>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] bg-white p-3.5 text-center">
-          <p className="text-xl font-extrabold text-[var(--primary-strong)]">{backlog.SCORED}</p>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Bewertet</p>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] bg-white p-3.5 text-center">
-          <p className="text-xl font-extrabold text-[var(--primary-strong)]">{backlog.ASSIGNED}</p>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Zugeordnet</p>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] bg-white p-3.5 text-center">
-          <p className="text-xl font-extrabold text-emerald-600">{todaysWritten}</p>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Heute geschrieben</p>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] bg-white p-3.5 text-center">
-          <p className="text-xl font-extrabold text-[var(--primary-strong)]">{avgDurationMs ? formatDuration(avgDurationMs) : "-"}</p>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Ø Dauer/Artikel</p>
-        </div>
-      </div>
+      <StatGrid
+        className="mb-6"
+        columns={5}
+        stats={[
+          { label: "Entdeckt", value: backlog.DISCOVERED },
+          { label: "Bewertet", value: backlog.SCORED },
+          { label: "Zugeordnet", value: backlog.ASSIGNED },
+          { label: "Heute geschrieben", value: todaysWritten, tone: "success" },
+          { label: "Ø Dauer/Artikel", value: avgDurationMs ? formatDuration(avgDurationMs) : "-" },
+        ]}
+      />
 
       {circuitBreakerTripped && (
         <div className="mb-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4">
@@ -161,7 +154,7 @@ export default async function RadarSettingsPage() {
             </p>
             <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
               Der Radar reiht so lange keine neuen Artikel mehr ein, bis LM Studio wieder zuverlaessig antwortet.
-              Ein manueller Requeue (Jobs-Liste) der als "erneut versuchen" markiert ist, setzt den Zaehler bei
+              Ein manueller Requeue (Jobs-Liste) der als &quot;erneut versuchen&quot; markiert ist, setzt den Zaehler bei
               Erfolg automatisch zurueck - oder hier manuell zuruecksetzen, wenn du sicher bist, dass LM Studio
               wieder laeuft.
             </p>
@@ -182,7 +175,7 @@ export default async function RadarSettingsPage() {
         <div className="border-b border-[var(--border)] bg-[var(--surface-alt)] px-4 py-3">
           <p className="text-xs font-bold uppercase tracking-wide text-[var(--muted)]">Warteschlange</p>
           <p className="mt-0.5 text-xs text-[var(--muted)]">
-            Wer an was arbeitet, in welcher Reihenfolge - "Zugeordnet" ist bereits die tatsaechliche Schreib-Reihenfolge
+            Wer an was arbeitet, in welcher Reihenfolge - &quot;Zugeordnet&quot; ist bereits die tatsaechliche Schreib-Reihenfolge
             (hoechster Score zuerst).
             {avgDurationMs && " Voraussichtliche Zeit basiert auf dem Durchschnitt der letzten 20 fertigen Artikel."}
           </p>
@@ -200,9 +193,7 @@ export default async function RadarSettingsPage() {
 
               return (
                 <li key={item.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
-                  <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ${STATUS_TONE[status]}`}>
-                    {STATUS_LABEL[status]}
-                  </span>
+                  <Badge tone={STATUS_TONE[status]} className="shrink-0">{STATUS_LABEL[status]}</Badge>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-[var(--foreground)]">{item.title}</p>
                     <p className="text-xs text-[var(--muted)]">{item.source.name}</p>
@@ -233,15 +224,8 @@ export default async function RadarSettingsPage() {
       </div>
 
       <form action={updateSettingsAction} className="space-y-5">
-        <div className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary-strong)]">
-              <RepeatIcon className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Scan-Zeitplan</p>
-          </div>
-
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <SectionCard icon={<RepeatIcon className="h-3.5 w-3.5" />} title="Scan-Zeitplan">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">Scan-Intervall (Minuten)</label>
               <input
@@ -262,21 +246,15 @@ export default async function RadarSettingsPage() {
           {settings.lastScanAt && (
             <p className="mt-2 text-xs text-[var(--muted)]">Letzter Scan: {formatRelativeTime(settings.lastScanAt)}</p>
           )}
-        </div>
+        </SectionCard>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary-strong)]">
-              <LayersIcon className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Ausgabe-Limit</p>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+        <SectionCard icon={<LayersIcon className="h-3.5 w-3.5" />} title="Ausgabe-Limit">
+          <p className="mb-3 text-xs leading-relaxed text-[var(--muted)]">
             Begrenzt, wie viele Artikel der Radar pro Kalendertag insgesamt schreibt - unabhaengig davon, wie viele
             Kandidaten gefunden und positiv bewertet werden.
           </p>
 
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">Artikel pro Tag</label>
               <input
@@ -294,16 +272,10 @@ export default async function RadarSettingsPage() {
               </label>
             </div>
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary-strong)]">
-              <TargetIcon className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Mindest-Score</p>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">
+        <SectionCard icon={<TargetIcon className="h-3.5 w-3.5" />} title="Mindest-Score">
+          <p className="mb-3 text-xs leading-relaxed text-[var(--muted)]">
             Kandidaten unter diesem Prioritaets-Score (0-100, von der KI vergeben) werden uebersprungen statt
             geschrieben. 0 = alles wird versucht.
           </p>
@@ -313,9 +285,9 @@ export default async function RadarSettingsPage() {
             min={0}
             max={100}
             defaultValue={settings.minScore}
-            className="mt-3 block w-32 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
+            className="block w-32 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
           />
-        </div>
+        </SectionCard>
 
         <button
           type="submit"
@@ -324,6 +296,6 @@ export default async function RadarSettingsPage() {
           Einstellungen speichern
         </button>
       </form>
-    </div>
+    </PageContainer>
   );
 }

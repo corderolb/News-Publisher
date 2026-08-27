@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatRelativeTime } from "@/lib/format";
+import { formatRelativeTime, formatDateTime } from "@/lib/format";
+import { ClockIcon, ChevronIcon } from "@/app/admin/JobIcons";
+import { getErrorMessage } from "@/lib/errors";
 
 type SourceMixEntry = {
   id: string;
@@ -40,15 +42,6 @@ function SparklesIcon({ className }: IconProps) {
   );
 }
 
-function ClockIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <circle cx="12" cy="12" r="9" />
-      <polyline points="12 7 12 12 15 14" />
-    </svg>
-  );
-}
-
 function UsersIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
@@ -64,14 +57,6 @@ function ShieldIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
       <path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ className }: IconProps) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <polyline points="6 9 12 15 18 9" />
     </svg>
   );
 }
@@ -153,7 +138,7 @@ function MetricInfo({ label, title, description }: { label: string; title: strin
 
   function show() {
     const rect = anchorRef.current?.getBoundingClientRect();
-    if (rect) setCoords({ top: rect.top - 8, left: Math.min(Math.max(rect.left + rect.width / 2, 140), window.innerWidth - 140) });
+    if (rect) setCoords({ top: rect.top - 8, left: Math.min(Math.max(rect.left + rect.width / 2, 150), window.innerWidth - 150) });
     setOpen(true);
   }
 
@@ -305,11 +290,6 @@ const PRESETS: Array<{ value: string; label: string }> = [
 const PAGE_SIZE = 10;
 const SNAPSHOT_PAGE_SIZE = 20;
 
-function formatDateTime(value?: string | null) {
-  if (!value) return "-";
-  return new Date(value).toLocaleString();
-}
-
 export default function ResearchPanel() {
   const storageKey = "research-topics-last-result-v2";
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -365,6 +345,10 @@ export default function ResearchPanel() {
 
   function formatDurationSince(iso: string | null): string {
     if (!iso) return "-";
+    // Deliberately reads the wall clock on every render: this is a ticking
+    // "elapsed since" display (see the setTick interval above), not state
+    // derived from props - there's no pure alternative here.
+    // eslint-disable-next-line react-hooks/purity
     const diffMs = Date.now() - new Date(iso).getTime();
     if (diffMs < 0) return "-";
     const totalSec = Math.floor(diffMs / 1000);
@@ -552,11 +536,11 @@ export default function ResearchPanel() {
       } catch {
         // Ignore storage errors in private mode or restricted browsers.
       }
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
         setError("KI-Filter hat zu lange gebraucht (ueber 30 Minuten). Bitte Fokus-Themen eingrenzen oder Modell wechseln.");
       } else {
-        setError(err?.message || "Research-Themen konnten nicht geladen werden");
+        setError(getErrorMessage(err, "Research-Themen konnten nicht geladen werden"));
       }
     } finally {
       clearTimeout(timer);
@@ -581,8 +565,8 @@ export default function ResearchPanel() {
       setSnapshotTotal(typeof data.total === "number" ? data.total : fetched.length);
       setSnapshotList((prev) => (offset === 0 ? fetched : [...prev, ...fetched]));
       return fetched;
-    } catch (err: any) {
-      setSnapshotError(err?.message || "Snapshot-Historie konnte nicht geladen werden");
+    } catch (err) {
+      setSnapshotError(getErrorMessage(err, "Snapshot-Historie konnte nicht geladen werden"));
       return [];
     } finally {
       setSnapshotLoading(false);
@@ -606,8 +590,8 @@ export default function ResearchPanel() {
       setLastUpdatedAt(typeof data.generatedAt === "string" ? data.generatedAt : null);
       setAiInfo(data.ai || null);
       setPage(0);
-    } catch (err: any) {
-      setSnapshotError(err?.message || "Snapshot konnte nicht geladen werden");
+    } catch (err) {
+      setSnapshotError(getErrorMessage(err, "Snapshot konnte nicht geladen werden"));
     } finally {
       setSnapshotLoading(false);
     }
@@ -672,8 +656,8 @@ export default function ResearchPanel() {
 
       setDispatchedKeys((prev) => new Set(prev).add(topic.key));
       setNotice(`Research-Auftrag gestartet. Autor: ${data.author}. JobRun: ${data.jobRunId}`);
-    } catch (err: any) {
-      setError(err?.message || "Research-Auftrag konnte nicht gestartet werden");
+    } catch (err) {
+      setError(getErrorMessage(err, "Research-Auftrag konnte nicht gestartet werden"));
     } finally {
       setDispatchingKey(null);
     }
@@ -690,6 +674,10 @@ export default function ResearchPanel() {
           savedAt?: string;
         };
 
+        // One-time hydration from localStorage on mount - can't run during
+        // render since localStorage isn't available server-side, so an
+        // effect is the correct place for it, not a lazy useState initializer.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (Array.isArray(parsed.topics)) setTopics(parsed.topics);
         if (Array.isArray(parsed.focusThemes) && parsed.focusThemes.length > 0) {
           setFocusThemes(parsed.focusThemes.join(","));
@@ -711,14 +699,17 @@ export default function ResearchPanel() {
   // (Re-)load the snapshot history whenever the preset changes, and drop out
   // of any historical view since it belonged to the previous preset.
   useEffect(() => {
+    // Resets the previous preset's list state before loading the new one -
+    // intentional synchronous reset, not accidental state-from-effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSnapshotList([]);
     setSnapshotTotal(0);
     setViewingSnapshotId(null);
     loadSnapshotList(preset, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (viewingSnapshotId === null) setPage(0);
   }, [lastUpdatedAt, viewingSnapshotId]);
 
@@ -781,7 +772,7 @@ export default function ResearchPanel() {
       </div>
 
       <div className="p-6">
-        <div className="grid gap-3 rounded-xl border border-[var(--border)] bg-white p-4 md:grid-cols-12">
+        <div className="grid gap-3 rounded-xl border border-[var(--border)] bg-white p-4 sm:grid-cols-2 md:grid-cols-12">
           <div className="md:col-span-4">
             <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-[var(--muted)]">Quellen-Preset</label>
             <select

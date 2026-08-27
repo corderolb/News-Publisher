@@ -1,7 +1,8 @@
 import { revalidatePath } from 'next/cache';
-import AuthorEditOverlay from '@/app/admin/AuthorEditOverlay';
-import AuthorOverlay from '@/app/admin/AuthorOverlay';
+import AuthorFormOverlay from '@/app/admin/AuthorFormOverlay';
 import { prisma } from '@/lib/prisma';
+import PageContainer from '@/components/ui/PageContainer';
+import Badge from '@/components/ui/Badge';
 
 export default async function AuthorsPage() {
   async function addAuthorAction(formData: FormData) {
@@ -98,14 +99,75 @@ export default async function AuthorsPage() {
 
   const authors = await prisma.authorProfile.findMany({ orderBy: [{ createdAt: 'asc' }] });
 
+  function renderAuthorActions(author: (typeof authors)[number]) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <AuthorFormOverlay
+          action={updateAuthorAction}
+          author={{
+            id: author.id,
+            name: author.name,
+            tone: author.tone,
+            bio: author.bio,
+            instructions: author.instructions,
+          }}
+        />
+
+        <form action={setDefaultAuthorAction}>
+          <input type="hidden" name="id" value={author.id} />
+          <button
+            type="submit"
+            className="font-semibold text-[var(--primary)] hover:underline disabled:text-[var(--muted)]"
+            disabled={author.isDefault}
+          >
+            Als Standard
+          </button>
+        </form>
+
+        <form action={toggleAuthorActiveAction}>
+          <input type="hidden" name="id" value={author.id} />
+          <button type="submit" className="font-semibold text-[var(--primary)] hover:underline">
+            {author.active ? 'Deaktivieren' : 'Aktivieren'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-10">
+    <PageContainer>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-[var(--muted)]">Verwalte Autorenprofil, Tonalitaet, Standardzuweisung und Aktivstatus.</p>
-        <AuthorOverlay addAuthorAction={addAuthorAction} />
+        <AuthorFormOverlay action={addAuthorAction} />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+      <div className="space-y-3 md:hidden">
+        {authors.map((author) => (
+          <article key={author.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-[var(--foreground)]">{author.name}</p>
+                {author.bio && <p className="mt-0.5 text-xs text-[var(--muted)]">{author.bio}</p>}
+              </div>
+              <Badge tone={author.active ? 'success' : 'neutral'}>
+                {author.active ? 'Aktiv' : 'Inaktiv'}
+                {author.isDefault ? ' • Standard' : ''}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-[var(--muted)]">{author.tone}</p>
+            <div className="mt-3">
+              {renderAuthorActions(author)}
+            </div>
+          </article>
+        ))}
+        {authors.length === 0 && (
+          <p className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+            Keine Autoren vorhanden.
+          </p>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] md:block">
         <table className="min-w-full">
           <thead className="bg-[var(--surface-alt)]">
             <tr>
@@ -124,42 +186,13 @@ export default async function AuthorsPage() {
                 </td>
                 <td className="px-4 py-3 text-sm text-[var(--muted)]">{author.tone}</td>
                 <td className="px-4 py-3 text-sm">
-                  <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-[var(--foreground)]">
+                  <Badge tone={author.active ? 'success' : 'neutral'}>
                     {author.active ? 'Aktiv' : 'Inaktiv'}
                     {author.isDefault ? ' • Standard' : ''}
-                  </span>
+                  </Badge>
                 </td>
                 <td className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <AuthorEditOverlay
-                      author={{
-                        id: author.id,
-                        name: author.name,
-                        tone: author.tone,
-                        bio: author.bio,
-                        instructions: author.instructions,
-                      }}
-                      updateAuthorAction={updateAuthorAction}
-                    />
-
-                    <form action={setDefaultAuthorAction}>
-                      <input type="hidden" name="id" value={author.id} />
-                      <button
-                        type="submit"
-                        className="font-semibold text-[var(--primary)] hover:underline disabled:text-[var(--muted)]"
-                        disabled={author.isDefault}
-                      >
-                        Als Standard
-                      </button>
-                    </form>
-
-                    <form action={toggleAuthorActiveAction}>
-                      <input type="hidden" name="id" value={author.id} />
-                      <button type="submit" className="font-semibold text-[var(--primary)] hover:underline">
-                        {author.active ? 'Deaktivieren' : 'Aktivieren'}
-                      </button>
-                    </form>
-                  </div>
+                  {renderAuthorActions(author)}
                 </td>
               </tr>
             ))}
@@ -173,6 +206,6 @@ export default async function AuthorsPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </PageContainer>
   );
 }

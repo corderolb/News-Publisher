@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { formatDateTime, formatRelativeTime } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
 
 type JobEvent = {
   id: string;
@@ -54,19 +56,6 @@ type RadarStatus = {
 
 type StatusFilter = "ALL" | "RUNNING" | "DONE" | "FAILED";
 
-function formatDateTime(ts?: string | null) {
-  if (!ts) return "-";
-  return new Date(ts).toLocaleString();
-}
-
-function formatRelativeMinutes(ts?: string | null) {
-  if (!ts) return "-";
-  const diffMs = new Date(ts).getTime() - Date.now();
-  const minutes = Math.round(diffMs / 60000);
-  if (minutes <= 0) return "jetzt";
-  return `${minutes} Min.`;
-}
-
 function RequeueIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
@@ -100,8 +89,8 @@ export default function JobStatusPanel() {
       setJobRuns(Array.isArray(data.jobRuns) ? data.jobRuns : []);
 
       setError(null);
-    } catch (err: any) {
-      setError(err?.message || "Job-Overview konnte nicht geladen werden");
+    } catch (err) {
+      setError(getErrorMessage(err, "Job-Overview konnte nicht geladen werden"));
     }
   }
 
@@ -112,8 +101,8 @@ export default function JobStatusPanel() {
       if (!data?.ok) throw new Error(data?.error || "Job-Details konnten nicht geladen werden");
       setSelectedJob(data.job || null);
       setError(null);
-    } catch (err: any) {
-      setError(err?.message || "Job-Details konnten nicht geladen werden");
+    } catch (err) {
+      setError(getErrorMessage(err, "Job-Details konnten nicht geladen werden"));
       setSelectedJob(null);
     }
   }
@@ -128,8 +117,8 @@ export default function JobStatusPanel() {
       if (!data?.ok) throw new Error(data?.error || "Radar konnte nicht gestartet werden");
 
       await loadOverview();
-    } catch (err: any) {
-      setError(err?.message || "Radar konnte nicht gestartet werden");
+    } catch (err) {
+      setError(getErrorMessage(err, "Radar konnte nicht gestartet werden"));
     } finally {
       setRunningNow(false);
     }
@@ -153,13 +142,17 @@ export default function JobStatusPanel() {
         setSelectedJobId(String(data.jobRunId));
       }
     } catch (err) {
-      setError((err as Error)?.message || "Job konnte nicht erneut eingereiht werden");
+      setError(getErrorMessage(err, "Job konnte nicht erneut eingereiht werden"));
     } finally {
       setRequeuingId(null);
     }
   }
 
   useEffect(() => {
+    // loadOverview is async and only calls setState after its own await -
+    // this is the standard fetch-on-mount pattern, not a synchronous
+    // render-in-effect update.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOverview();
   }, []);
 
@@ -173,6 +166,9 @@ export default function JobStatusPanel() {
 
   useEffect(() => {
     if (!selectedJobId) {
+      // Synchronous reset when the selection is cleared - loadJobDetail
+      // (below) handles the async fetch-and-setState path for a real id.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedJob(null);
       return;
     }
@@ -243,7 +239,7 @@ export default function JobStatusPanel() {
                   <span className={`h-1.5 w-1.5 rounded-full ${radarStatus.active ? "bg-emerald-500" : "bg-rose-400"}`} />
                   {radarStatus.active ? "Aktiv" : "Pausiert"}
                 </span>
-                <span className="text-[var(--muted)]">Naechster Scan in {formatRelativeMinutes(radarStatus.nextScanAt)}</span>
+                <span className="text-[var(--muted)]">Naechster Scan {formatRelativeTime(radarStatus.nextScanAt)}</span>
                 <span className="text-[var(--muted)]">
                   Heute geschrieben: <span className="font-semibold text-[var(--foreground)]">{radarStatus.writtenToday}</span>/{radarStatus.dailyArticleLimit}
                 </span>

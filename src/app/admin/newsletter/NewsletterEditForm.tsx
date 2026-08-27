@@ -5,6 +5,8 @@ import DeleteConfirmButton from "@/app/admin/DeleteConfirmButton";
 import { ChevronIcon, ClockIcon, LayersIcon, PowerIcon, RepeatIcon, UserIcon } from "@/app/admin/JobIcons";
 import { formatRelativeTime } from "@/lib/format";
 import NewsletterPreview from "@/app/admin/newsletter/NewsletterPreview";
+import Badge, { type BadgeTone } from "@/components/ui/Badge";
+import { Label, SelectInput, TextInput, TextareaInput } from "@/components/ui/Field";
 
 export type NewsletterConfigData = {
   id: string;
@@ -36,24 +38,16 @@ const CADENCE_LABEL: Record<NewsletterConfigData["cadence"], string> = {
   WEEKLY: "Woechentlich",
   MONTHLY: "Monatlich",
 };
-const CADENCE_TONE: Record<NewsletterConfigData["cadence"], string> = {
-  DAILY: "bg-blue-50 text-blue-700 ring-blue-200",
-  WEEKLY: "bg-purple-50 text-purple-700 ring-purple-200",
-  MONTHLY: "bg-teal-50 text-teal-700 ring-teal-200",
+const CADENCE_TONE: Record<NewsletterConfigData["cadence"], BadgeTone> = {
+  DAILY: "info",
+  WEEKLY: "warning",
+  MONTHLY: "neutral",
 };
 const CADENCE_PERIOD_HINT: Record<NewsletterConfigData["cadence"], string> = {
   DAILY: "letzte 24 Std.",
   WEEKLY: "letzte 7 Tage",
   MONTHLY: "letzte 30 Tage",
 };
-
-function Pill({ children, className, title }: { children: React.ReactNode; className: string; title?: string }) {
-  return (
-    <span title={title} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ${className}`}>
-      {children}
-    </span>
-  );
-}
 
 export default function NewsletterEditForm({
   config,
@@ -80,14 +74,14 @@ export default function NewsletterEditForm({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <Pill className={CADENCE_TONE[config.cadence]}>{CADENCE_LABEL[config.cadence]}</Pill>
-              <Pill className={config.active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-rose-50 text-rose-700 ring-rose-200"}>
+              <Badge tone={CADENCE_TONE[config.cadence]}>{CADENCE_LABEL[config.cadence]}</Badge>
+              <Badge tone={config.active ? "success" : "danger"} className="gap-1">
                 <span className={`h-1.5 w-1.5 rounded-full ${config.active ? "bg-emerald-500" : "bg-rose-400"}`} />
                 {config.active ? "Aktiv" : "Inaktiv"}
-              </Pill>
-              <Pill className="bg-indigo-50 text-indigo-700 ring-indigo-200" title="Beim Versand waehlt und ordnet die KI die Artikel und schreibt eine Editorial-Einleitung">
-                KI waehlt beim Versand
-              </Pill>
+              </Badge>
+              <span title="Beim Versand waehlt und ordnet die KI die Artikel und schreibt eine Editorial-Einleitung">
+                <Badge tone="info">KI waehlt beim Versand</Badge>
+              </span>
             </div>
 
             <p className="mt-1.5 text-[15px] font-bold leading-snug text-[var(--foreground)]">{config.name}</p>
@@ -163,38 +157,23 @@ export default function NewsletterEditForm({
           <input type="hidden" name="id" value={config.id} />
 
           <div>
-            <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">Name</label>
-            <input
-              name="name"
-              required
-              defaultValue={config.name}
-              className="block w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-            />
+            <Label htmlFor={`name-${config.id}`}>Name</Label>
+            <TextInput id={`name-${config.id}`} name="name" required defaultValue={config.name} />
           </div>
 
           <SectionCard icon={<RepeatIcon className="h-3.5 w-3.5" />} title="Zeitplan">
             <div className="grid gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">Frequenz</label>
-                <select
-                  name="cadence"
-                  defaultValue={config.cadence}
-                  className="block w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-                >
+                <Label htmlFor={`cadence-${config.id}`}>Frequenz</Label>
+                <SelectInput id={`cadence-${config.id}`} name="cadence" defaultValue={config.cadence}>
                   <option value="DAILY">Taeglich</option>
                   <option value="WEEKLY">Woechentlich (letzte 7 Tage)</option>
                   <option value="MONTHLY">Monatlich (letzte 30 Tage)</option>
-                </select>
+                </SelectInput>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">Sendezeit</label>
-                <input
-                  name="sendHour"
-                  type="time"
-                  defaultValue={config.sendHour}
-                  required
-                  className="block w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-                />
+                <Label htmlFor={`sendHour-${config.id}`}>Sendezeit</Label>
+                <TextInput id={`sendHour-${config.id}`} name="sendHour" type="time" defaultValue={config.sendHour} required />
               </div>
               <div className="flex items-end">
                 <label className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
@@ -208,23 +187,19 @@ export default function NewsletterEditForm({
           <SectionCard icon={<LayersIcon className="h-3.5 w-3.5" />} title="Inhalt">
             <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
               <div>
-                <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">Betreff</label>
-                <input
-                  name="subjectTemplate"
-                  defaultValue={config.subjectTemplate}
-                  required
-                  className="block w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
-                />
+                <Label htmlFor={`subjectTemplate-${config.id}`}>Betreff</Label>
+                <TextInput id={`subjectTemplate-${config.id}`} name="subjectTemplate" defaultValue={config.subjectTemplate} required />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">Top-Artikel</label>
-                <input
+                <Label htmlFor={`topN-${config.id}`}>Top-Artikel</Label>
+                <TextInput
+                  id={`topN-${config.id}`}
                   name="topN"
                   type="number"
                   min={1}
                   max={20}
                   defaultValue={config.topN}
-                  className="block w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2 sm:w-24"
+                  className="sm:w-24"
                 />
               </div>
             </div>
@@ -235,15 +210,15 @@ export default function NewsletterEditForm({
             title="Empfaenger"
             action={<span className="text-[10px] font-semibold text-[var(--muted)]">{recipientCount} aktuell</span>}
           >
-            <label className="mb-1 block text-sm font-semibold text-[var(--foreground)]">
+            <Label htmlFor={`recipients-${config.id}`}>
               E-Mail-Adressen <span className="font-normal text-[var(--muted)]">(kommagetrennt oder eine pro Zeile)</span>
-            </label>
-            <textarea
+            </Label>
+            <TextareaInput
+              id={`recipients-${config.id}`}
               name="recipients"
               defaultValue={config.recipients}
               rows={3}
               placeholder="redaktion@spielfilm.de, marketing@spielfilm.de"
-              className="block w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--foreground)] outline-none ring-[var(--primary)] focus:ring-2"
             />
           </SectionCard>
 

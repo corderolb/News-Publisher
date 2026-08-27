@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import DeleteConfirmButton from "@/app/admin/DeleteConfirmButton";
 import { ChevronIcon, EyeIcon, MessageIcon, TagIcon, TargetIcon } from "@/app/admin/JobIcons";
 import { formatRelativeTime } from "@/lib/format";
+import Badge from "@/components/ui/Badge";
+import SectionCard from "@/app/admin/SectionCard";
 import type { PromptVariable } from "@/lib/prompt-registry";
 
 export type PromptCardData = {
@@ -56,19 +58,11 @@ export default function PromptCard({ prompt, updateAction, resetAction }: Prompt
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 ring-1 ring-slate-200">
-                {prompt.category}
-              </span>
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1 ${
-                  prompt.isCustomized
-                    ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
-                    : "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                }`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${prompt.isCustomized ? "bg-indigo-500" : "bg-emerald-500"}`} />
+              <Badge tone="neutral">{prompt.category}</Badge>
+              <Badge tone={prompt.isCustomized ? "info" : "success"} className="gap-1">
+                <span className={`h-1.5 w-1.5 rounded-full ${prompt.isCustomized ? "bg-sky-500" : "bg-emerald-500"}`} />
                 {prompt.isCustomized ? "Angepasst" : "Standard"}
-              </span>
+              </Badge>
             </div>
 
             <p className="mt-1.5 text-[15px] font-bold leading-snug text-[var(--foreground)]">{prompt.label}</p>
@@ -86,25 +80,13 @@ export default function PromptCard({ prompt, updateAction, resetAction }: Prompt
       </summary>
 
       <div className="space-y-5 border-t border-[var(--border)] bg-[var(--surface-alt)] px-4 py-4 sm:px-5">
-        <div className="rounded-xl border border-[var(--border)] bg-white p-4 sm:p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary-strong)]">
-              <TargetIcon className="h-3.5 w-3.5" />
-            </span>
-            <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Wann wird dieser Prompt ausgefuehrt?</p>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)]">{prompt.usageContext}</p>
-        </div>
+        <SectionCard icon={<TargetIcon className="h-3.5 w-3.5" />} title="Wann wird dieser Prompt ausgefuehrt?">
+          <p className="text-sm leading-relaxed text-[var(--foreground)]">{prompt.usageContext}</p>
+        </SectionCard>
 
         {prompt.variables.length > 0 && (
-          <div className="rounded-xl border border-[var(--border)] bg-white p-4 sm:p-5">
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary)]/10 text-[var(--primary-strong)]">
-                <TagIcon className="h-3.5 w-3.5" />
-              </span>
-              <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Verfuegbare Variablen</p>
-            </div>
-            <p className="mt-2 text-xs text-[var(--muted)]">
+          <SectionCard icon={<TagIcon className="h-3.5 w-3.5" />} title="Verfuegbare Variablen">
+            <p className="text-xs text-[var(--muted)]">
               Diese Platzhalter werden beim Ausfuehren automatisch durch echte Werte ersetzt. Sie koennen im Text
               beliebig oft und in beliebiger Reihenfolge verwendet werden.
             </p>
@@ -120,7 +102,7 @@ export default function PromptCard({ prompt, updateAction, resetAction }: Prompt
                 </div>
               ))}
             </dl>
-          </div>
+          </SectionCard>
         )}
 
         <form action={updateAction} className="space-y-3 rounded-2xl border border-[var(--border)] bg-white p-4 shadow-sm sm:p-5">
