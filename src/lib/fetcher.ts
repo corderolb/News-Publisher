@@ -50,6 +50,31 @@ export async function fetchRSS(url: string) {
   }
 }
 
+// Hard cap on extracted article text before it flows into an LLM prompt as
+// ORIGINAL_TEXT. Truncates at the last clean paragraph/sentence boundary at
+// or before the limit when one is available nearby, otherwise hard-cuts.
+const MAX_SCRAPED_CONTENT_LENGTH = 10000;
+const BOUNDARY_LOOKBACK_WINDOW = 1000;
+
+function capContentLength(text: string, maxLength = MAX_SCRAPED_CONTENT_LENGTH): string {
+  if (text.length <= maxLength) return text;
+
+  const slice = text.slice(0, maxLength);
+  const searchStart = Math.max(0, maxLength - BOUNDARY_LOOKBACK_WINDOW);
+
+  const lastParagraphBreak = slice.lastIndexOf('\n\n');
+  if (lastParagraphBreak >= searchStart) {
+    return slice.slice(0, lastParagraphBreak).trim();
+  }
+
+  const lastSentenceEnd = slice.lastIndexOf('. ');
+  if (lastSentenceEnd >= searchStart) {
+    return slice.slice(0, lastSentenceEnd + 1).trim();
+  }
+
+  return slice.trim();
+}
+
 export async function fetchHTMLContent(url: string) {
   try {
     const normalizedUrl = normalizeExternalUrl(url);
@@ -76,7 +101,8 @@ export async function fetchHTMLContent(url: string) {
       .replace(/\s+/g, ' ')
       .trim();
 
-    return articleText || $('body').text().replace(/\s+/g, ' ').trim();
+    const extracted = articleText || $('body').text().replace(/\s+/g, ' ').trim();
+    return capContentLength(extracted);
   } catch (error) {
     console.error(`Error fetching HTML from ${url}:`, error);
     return null;

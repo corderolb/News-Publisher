@@ -3,6 +3,7 @@ import { fetchHTMLContent } from '@/lib/fetcher';
 import { generateArticleWithResearch, translateCitationsToGerman } from '@/lib/ai';
 import { webResearch } from '@/lib/research';
 import { slugify, withRandomSuffix } from '@/lib/slug';
+import { getErrorMessage } from '@/lib/errors';
 
 async function jobEvent(jobRunId: string, step: string, message: string) {
   await prisma.jobEvent.create({ data: { jobRunId, step, message } });
@@ -66,7 +67,7 @@ export async function writeRadarQueueItem(radarItemId: string, jobRunId: string)
         tone: item.author.tone,
         instructions: item.author.instructions,
       },
-      research,
+      research: translatedResearch,
     });
 
     const baseSlug = slugify(generated.title || item.title || 'news-story');
@@ -124,9 +125,9 @@ export async function writeRadarQueueItem(radarItemId: string, jobRunId: string)
       },
     });
     await jobEvent(jobRunId, 'DONE', `Fertig in ${Math.round(durationMs / 1000)}s.`);
-  } catch (error: any) {
+  } catch (error) {
     const durationMs = Date.now() - startedAt;
-    const failReason = error?.message || 'Unbekannter Fehler';
+    const failReason = getErrorMessage(error);
 
     await prisma.radarQueueItem.update({ where: { id: radarItemId }, data: { status: 'FAILED', failReason } });
 

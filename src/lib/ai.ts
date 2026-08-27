@@ -47,7 +47,7 @@ function extractJsonObject(text: string): string | null {
 }
 
 function toSafePayload(data: Partial<GeneratedArticlePayload>, fallbackTitle: string): GeneratedArticlePayload {
-  const breakdownRaw = (data as any).scoreBreakdown || {};
+  const breakdownRaw: Partial<ScoreBreakdown> = data.scoreBreakdown || {};
   const rawFactuality = Number(breakdownRaw.factuality);
   const rawClarity = Number(breakdownRaw.clarity);
   const rawStructure = Number(breakdownRaw.structure);
@@ -133,6 +133,10 @@ export async function generateArticleWithResearch(params: {
       model: await resolvePrimaryModel(),
       prompt,
       abortSignal: controller.signal,
+      // Full articles (title, excerpt, body, SEO fields, score breakdown,
+      // fact checklist, follow-up angles) need real headroom - generous cap,
+      // not a tight one.
+      maxOutputTokens: 8000,
     }).finally(() => clearTimeout(timer));
 
     const jsonText = extractJsonObject(text);
@@ -191,6 +195,9 @@ export async function translateCitationsToGerman(
       model: await resolvePrimaryModel(),
       abortSignal: controller.signal,
       prompt,
+      // Translating a handful of citation title/snippet pairs needs far less
+      // room than a full article.
+      maxOutputTokens: 2000,
     }).finally(() => clearTimeout(timer));
 
     const jsonText = extractJsonObject(text);
@@ -247,6 +254,9 @@ export async function ensureGermanHotTopics<T extends { title: string; aiReason?
       model: await resolvePrimaryModel(),
       abortSignal: controller.signal,
       prompt,
+      // Translating a batch of hot-topic titles/reasons needs far less room
+      // than a full article.
+      maxOutputTokens: 2000,
     }).finally(() => clearTimeout(timer));
 
     const jsonText = extractJsonObject(text);

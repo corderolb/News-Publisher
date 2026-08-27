@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { resolvePrimaryModel } from '@/lib/llm-settings';
 import { buildRadarScoringPrompt } from '@/lib/radar-prompt';
 import { loadDuplicateCandidates, findDuplicatesBatch } from '@/lib/dedupe';
-import { matchAuthorsForTopics } from '@/lib/research-topics';
+import { matchAuthorsForTopics, buildAuthorRosterText } from '@/lib/research-topics';
 import { enqueueRadarWrite, isAnyJobRunning, drainQueue } from '@/lib/job-queue';
+import { getErrorMessage } from '@/lib/errors';
 
 const SCORING_TIMEOUT_MS = 150_000;
 
@@ -139,10 +140,10 @@ export async function scoreAndAssignRadarItems(): Promise<void> {
         where: { id: job.id },
         data: { status: 'COMPLETED', finishedAt: new Date(), message: 'Bewertung und Zuordnung abgeschlossen.' },
       });
-    } catch (error: any) {
+    } catch (error) {
       await prisma.jobRun.update({
         where: { id: job.id },
-        data: { status: 'FAILED', finishedAt: new Date(), message: error?.message || 'Unbekannter Fehler' },
+        data: { status: 'FAILED', finishedAt: new Date(), message: getErrorMessage(error) },
       });
     }
   } finally {
@@ -238,12 +239,18 @@ async function runScoreAndAssign(): Promise<void> {
       // in one shot, and research-topics.ts's own timeout for this call is a
       // generous 30 minutes by default - a chunk here fails (and falls back
       // to the keyword heuristic) much sooner than a single giant call would.
+      // Roster text (name/bio/tone/instructions per author) doesn't change
+      // across chunks within one scoring run - build it once here instead of
+      // letting matchAuthorsForTopics re-derive it on every chunk call.
+      const rosterText = buildAuthorRosterText(authors);
+
       const assignments = new Map<string, { id: string; name: string; reason: string }>();
       for (let i = 0; i < toAssign.length; i += SCORING_CHUNK_SIZE) {
         const chunk = toAssign.slice(i, i + SCORING_CHUNK_SIZE);
         const chunkAssignments = await matchAuthorsForTopics(
           chunk.map((item) => ({ key: item.id, title: item.title })),
-          authors
+          authors,
+          rosterText
         );
         for (const [key, value] of chunkAssignments) assignments.set(key, value);
       }

@@ -53,8 +53,7 @@ ORIGINAL-TEXT
 RECHERCHE-QUELLEN
 {{RESEARCH_BLOCK}}
 
-Gib AUSSCHLIESSLICH gueltiges JSON ohne Markdown aus.
-Schema:
+Gib AUSSCHLIESSLICH gueltiges JSON aus (kein Markdown, kein Kommentar):
 {
   "title": "string",
   "excerpt": "string (max 240 chars)",
@@ -75,8 +74,8 @@ Schema:
 
 const CITATION_TRANSLATOR_TEMPLATE = `Du bist ein Uebersetzer fuer ein deutschsprachiges Nachrichtenportal.
 Uebersetze folgende Recherche-Zitate ins Deutsche. Eigennamen (Personen, Filme,
-Serien, Studios, Marken) bleiben unveraendert. Kein Kommentar, keine Erklaerungen.
-Gib AUSSCHLIESSLICH gueltiges JSON zurueck im Schema:
+Serien, Studios, Marken) bleiben unveraendert.
+Gib AUSSCHLIESSLICH gueltiges JSON aus (kein Markdown, kein Kommentar):
 { "items": [{ "i": number, "title": string, "snippet": string }] }
 
 INPUT:
@@ -85,7 +84,8 @@ INPUT:
 const HOT_TOPICS_DE_TRANSLATOR_TEMPLATE = `Du bist ein Uebersetzer fuer ein deutschsprachiges Entertainment-Nachrichtenportal.
 Uebersetze fuer jedes Item eine natuerliche, redaktionelle deutsche Fassung des Titels
 und der Begruendung (reason). Eigennamen (Personen, Filme, Serien, Studios) bleiben
-unveraendert. Kein Kommentar. Gib AUSSCHLIESSLICH gueltiges JSON zurueck im Schema:
+unveraendert.
+Gib AUSSCHLIESSLICH gueltiges JSON aus (kein Markdown, kein Kommentar):
 { "items": [{ "i": number, "titleDe": string, "reasonDe": string }] }
 
 INPUT:
@@ -95,10 +95,6 @@ const HOT_TOPICS_FILTER_TEMPLATE = `Du bist eine modulare Research Engine fuer v
 
 PRIMAERER EINSATZBEREICH:
 {{PRIMARY_DOMAIN}}
-
-WICHTIG:
-- Behandle das Fokusgebiet als Konfiguration, nicht als feste Logik.
-- Die Domane kann sich spaeter aendern. Bleibe generisch.
 
 ZIELE:
 1) Erkenne virale Trends fruehzeitig.
@@ -111,10 +107,6 @@ AKTIVE FOKUS-THEMEN:
 
 AKTIVE TAXONOMIE:
 {{DOMAIN_TAXONOMY}}
-
-PIPELINE-KONTEXT (vereinfacht fuer diese Aufgabe):
-- Daten wurden bereits ingestiert und geclustert.
-- Deine Aufgabe: Verfeinerung/Filterung fuer Hot Topics und NER pro Topic.
 
 NER-REGELN:
 - persons: reale Personen (z.B. Schauspieler, Regisseure, Promis).
@@ -136,7 +128,7 @@ AUSGABE-REGELN:
 INPUT TOPICS:
 {{TOPICS_JSON}}
 
-Gib AUSSCHLIESSLICH gueltiges JSON aus:
+Gib AUSSCHLIESSLICH gueltiges JSON aus (kein Markdown, kein Kommentar):
 {
   "items": [
     {
@@ -168,7 +160,7 @@ Weise JEDEM der folgenden Themen genau einen Autor aus dem obigen Stack zu (per 
 INPUT THEMEN:
 {{TOPICS_JSON}}
 
-Gib AUSSCHLIESSLICH gueltiges JSON aus:
+Gib AUSSCHLIESSLICH gueltiges JSON aus (kein Markdown, kein Kommentar):
 {
   "assignments": [
     { "key": "string", "authorId": "string", "reason": "string" }
@@ -188,7 +180,7 @@ nach Relevanz (wichtigstes zuerst). Schreibe zusaetzlich eine kurze, einladende 
 ARTIKEL
 {{ARTICLES_JSON}}
 
-Gib AUSSCHLIESSLICH gueltiges JSON aus, Schema:
+Gib AUSSCHLIESSLICH gueltiges JSON aus (kein Markdown, kein Kommentar):
 { "orderedIds": ["id", "..."], "intro": "string" }`;
 
 const RADAR_SCORING_TEMPLATE = `Du bist Redaktionsleiter/in und bewertest neu entdeckte Artikel-Kandidaten nach ihrem redaktionellen Wert, bevor ueberhaupt ein Artikel daraus geschrieben wird.
@@ -201,7 +193,7 @@ relevante Themen; niedrige Werte fuer Nebensaechliches, reine Wiederholungen ode
 INPUT KANDIDATEN
 {{ITEMS_JSON}}
 
-Gib AUSSCHLIESSLICH gueltiges JSON aus:
+Gib AUSSCHLIESSLICH gueltiges JSON aus (kein Markdown, kein Kommentar):
 {
   "items": [
     { "key": "string", "score": 0, "reason": "string" }

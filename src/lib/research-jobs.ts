@@ -6,6 +6,7 @@ import { slugify, withRandomSuffix } from '@/lib/slug';
 import { matchAuthorsForTopics } from '@/lib/research-topics';
 import { loadDuplicateCandidates, findDuplicate, type DuplicateMatch } from '@/lib/dedupe';
 import { isAnyJobRunning } from '@/lib/job-queue';
+import { getErrorMessage } from '@/lib/errors';
 
 type DispatchInput = {
   topic: string;
@@ -176,11 +177,12 @@ export async function dispatchResearchTopic(input: DispatchInput) {
     const baseText = [
       `Trend-Thema: ${topic}`,
       `URL-Hinweis: ${cleanTopicUrl || '-'}`,
-      ...usableResearch.map((item, idx) => `${idx + 1}) ${item.title}\n${item.snippet}`),
       ...htmlChunks.filter(Boolean),
     ].join('\n\n');
 
     await addEvent(jobRun.id, 'WRITE', 'Artikel wird erstellt.');
+
+    const translatedResearch = await translateCitationsToGerman(usableResearch);
 
     // Throws on failure (timeout, network error, malformed response) -
     // caught by this function's own outer try/catch below, which fails the
@@ -194,10 +196,8 @@ export async function dispatchResearchTopic(input: DispatchInput) {
         tone: selectedAuthor.tone,
         instructions: selectedAuthor.instructions,
       },
-      research: usableResearch,
+      research: translatedResearch,
     });
-
-    const translatedResearch = await translateCitationsToGerman(usableResearch);
 
     const trendSource = await prisma.source.upsert({
       where: { id: 'trend-research-source' },
@@ -265,7 +265,7 @@ export async function dispatchResearchTopic(input: DispatchInput) {
       slug: article.slug,
       author: selectedAuthor.name,
     };
-  } catch (error: any) {
+  } catch (error) {
     const durationMs = Date.now() - startedAt;
 
     await prisma.jobRun.update({
@@ -275,7 +275,7 @@ export async function dispatchResearchTopic(input: DispatchInput) {
         failed: 1,
         finishedAt: new Date(),
         durationMs,
-        message: error?.message || 'Research-Auftrag fehlgeschlagen',
+        message: getErrorMessage(error, 'Research-Auftrag fehlgeschlagen'),
         currentStep: 'FAILED',
       },
     });
@@ -284,7 +284,7 @@ export async function dispatchResearchTopic(input: DispatchInput) {
       data: {
         jobRunId: jobRun.id,
         step: 'FAILED',
-        message: error?.message || 'Research-Auftrag fehlgeschlagen',
+        message: getErrorMessage(error, 'Research-Auftrag fehlgeschlagen'),
       },
     });
 

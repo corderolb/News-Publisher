@@ -7,10 +7,26 @@ export type ResearchEnginePromptConfig = {
   topics: Array<{ key: string; title: string }>;
 };
 
+export type AuthorRosterEntry = { id: string; name: string; bio: string; tone: string; instructions: string };
+
 export type AuthorMatchPromptConfig = {
-  authors: Array<{ id: string; name: string; bio: string; tone: string; instructions: string }>;
+  authorList: string;
   topics: Array<{ key: string; title: string }>;
 };
+
+// Formats the author roster (name/bio/tone/instructions per author) into the
+// text block sent as AUTHOR_LIST. Pulled out so callers that invoke the
+// author-match prompt multiple times in a row (e.g. once per scoring chunk)
+// can build this once per run instead of re-formatting the same authors on
+// every call.
+export function formatAuthorRoster(authors: AuthorRosterEntry[]): string {
+  return authors
+    .map(
+      (author) =>
+        `- id: "${author.id}"\n  Name: ${author.name}\n  Bio: ${author.bio || '-'}\n  Tonalitaet: ${author.tone || '-'}\n  Extra-Regeln: ${author.instructions || '-'}`
+    )
+    .join('\n\n');
+}
 
 function listOrFallback(values: string[], fallback: string) {
   if (!Array.isArray(values) || values.length === 0) return fallback;
@@ -34,15 +50,8 @@ export async function buildResearchEngineFilterPrompt(config: ResearchEngineProm
 }
 
 export async function buildAuthorMatchPrompt(config: AuthorMatchPromptConfig) {
-  const authorList = config.authors
-    .map(
-      (author) =>
-        `- id: "${author.id}"\n  Name: ${author.name}\n  Bio: ${author.bio || '-'}\n  Tonalitaet: ${author.tone || '-'}\n  Extra-Regeln: ${author.instructions || '-'}`
-    )
-    .join('\n\n');
-
   return renderPrompt('author-topic-match', {
-    AUTHOR_LIST: authorList,
+    AUTHOR_LIST: config.authorList,
     TOPICS_JSON: JSON.stringify(config.topics),
   });
 }

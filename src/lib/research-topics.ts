@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { generateText } from 'ai';
 import { fetchRSS } from '@/lib/fetcher';
-import { buildResearchEngineFilterPrompt, buildAuthorMatchPrompt } from '@/lib/research-engine-prompt';
+import { buildResearchEngineFilterPrompt, buildAuthorMatchPrompt, formatAuthorRoster } from '@/lib/research-engine-prompt';
 import { ensureGermanHotTopics } from '@/lib/ai';
 import { resolvePrimaryModel } from '@/lib/llm-settings';
+import { getErrorMessage } from '@/lib/errors';
 
 export type SourceKind =
   | 'rss'
@@ -76,6 +77,12 @@ type CollectOptions = {
   limit?: number;
   preset?: string;
 };
+
+// Same value as radar-score.ts's SCORING_CHUNK_SIZE - kept as its own local
+// constant instead of importing it, since radar-score.ts itself imports
+// matchAuthorsForTopics/buildAuthorRosterText from this module, and importing
+// back from radar-score.ts here would create a circular dependency.
+const HOT_TOPICS_FILTER_CHUNK_SIZE = 12;
 
 // Alle Quellen sind 100% kostenlos und benoetigen keinen API-Key.
 // Bezahlte Anbieter (TMDB Enterprise, Serper, Tavily, Bing News, NewsAPI, ...)
@@ -223,8 +230,10 @@ async function fetchSubreddit(source: SourceDescriptor, limit: number): Promise<
     headers: { 'User-Agent': 'NewsPublisherBot/1.0' },
   });
 
-  const children = Array.isArray(response.data?.data?.children) ? response.data.data.children : [];
-  return children.slice(0, limit).map((entry: any) => {
+  const children: Array<{
+    data?: { score?: unknown; num_comments?: unknown; title?: unknown; url?: unknown; permalink?: unknown; created_utc?: unknown };
+  }> = Array.isArray(response.data?.data?.children) ? response.data.data.children : [];
+  return children.slice(0, limit).map((entry) => {
     const data = entry?.data || {};
     const score = Number(data.score) || 0;
     const comments = Number(data.num_comments) || 0;
@@ -235,7 +244,7 @@ async function fetchSubreddit(source: SourceDescriptor, limit: number): Promise<
       title: String(data.title || '').trim(),
       url: data.url ? String(data.url) : `https://reddit.com${data.permalink || ''}`,
       source,
-      publishedAt: Number.isFinite(data.created_utc)
+      publishedAt: Number.isFinite(Number(data.created_utc))
         ? new Date(Number(data.created_utc) * 1000)
         : new Date(),
       engagement,
@@ -287,13 +296,14 @@ async function fetchTVMazeSchedule(source: SourceDescriptor, limit: number): Pro
     timeout: 15000,
   });
 
-  const entries = Array.isArray(response.data) ? response.data : [];
-  return entries.slice(0, limit).map((entry: any) => {
+  const entries: Array<{ show?: { name?: unknown; url?: unknown }; name?: unknown; url?: unknown; airdate?: unknown }> =
+    Array.isArray(response.data) ? response.data : [];
+  return entries.slice(0, limit).map((entry) => {
     const showName = String(entry?.show?.name || '').trim();
     const episodeName = String(entry?.name || '').trim();
     const title = episodeName ? `${showName} - ${episodeName}` : showName;
     const url = String(entry?.show?.url || entry?.url || 'https://www.tvmaze.com');
-    const airdate = entry?.airdate ? new Date(entry.airdate) : new Date();
+    const airdate = entry?.airdate ? new Date(String(entry.airdate)) : new Date();
     return { title, url, source, publishedAt: airdate, engagement: 60 } as RawTopic;
   }).filter((item: RawTopic) => item.title && item.url);
 }
@@ -482,6 +492,194 @@ export type FilterHotTopicsResult = {
   };
 };
 
+type ChunkFilterResult = {
+  topics: FilteredHotTopic[];
+  usedAI: boolean;
+  durationMs: number;
+  rawLength: number;
+  includedCount: number;
+  rejectedCount: number;
+  error: string | null;
+  fallbackReason: string | null;
+};
+
+// Runs the relevance-filter AI call for a single chunk of topics and applies
+// the same per-item parsing/validation the single-batch version used to do
+// for the whole list. Never throws - a bad chunk (timeout, malformed JSON,
+// empty AI result) falls back to the keyword filter for just that chunk's
+// topics, so one slow/broken chunk doesn't take the rest of the batch down.
+async function filterTopicsChunk(
+  chunkTopics: HotTopic[],
+  focusThemes: string[],
+  domainTaxonomy: string[],
+  primaryDomain: string,
+  model: Awaited<ReturnType<typeof resolvePrimaryModel>>,
+  timeoutMs: number
+): Promise<ChunkFilterResult> {
+  const startedAt = Date.now();
+  let rawText = '';
+
+  try {
+    const input = chunkTopics.map((topic) => ({ key: topic.key, title: topic.title }));
+
+    const prompt = await buildResearchEngineFilterPrompt({
+      primaryDomain,
+      focusThemes,
+      domainTaxonomy,
+      topics: input,
+    });
+
+    const aiResponse = await Promise.race([
+      generateText({
+        model,
+        prompt,
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('AI_FILTER_TIMEOUT')), timeoutMs);
+      }),
+    ]);
+
+    const { text } = aiResponse;
+    rawText = text || '';
+
+    console.log('[research-ai] chunk response received', {
+      chunkSize: chunkTopics.length,
+      durationMs: Date.now() - startedAt,
+      textLength: rawText.length,
+    });
+
+    const jsonText = extractJsonObject(rawText);
+    if (!jsonText) {
+      const fallback = keywordFilter(chunkTopics, focusThemes, domainTaxonomy);
+      console.warn('[research-ai] no JSON in chunk response, fallback to keyword filter', { included: fallback.length });
+      return {
+        topics: fallback,
+        usedAI: false,
+        durationMs: Date.now() - startedAt,
+        rawLength: rawText.length,
+        includedCount: 0,
+        rejectedCount: 0,
+        error: 'no-json-in-response',
+        fallbackReason: 'ai-no-json',
+      };
+    }
+
+    const parsed = JSON.parse(jsonText) as {
+      items?: Array<{
+        key?: string;
+        include?: boolean;
+        relevance?: number;
+        matchedThemes?: string[];
+        category?: string;
+        reason?: string;
+        titleDe?: string;
+        reasonDe?: string;
+        entities?: {
+          persons?: string[];
+          works?: string[];
+          studios?: string[];
+        };
+      }>;
+    };
+
+    const byKey = new Map((parsed.items || []).map((item) => [String(item.key || ''), item]));
+
+    const filtered: FilteredHotTopic[] = [];
+
+    for (const topic of chunkTopics) {
+      const decision = byKey.get(topic.key);
+      if (!decision?.include) continue;
+
+      const relevance = Number.isFinite(decision.relevance) ? Math.max(0, Math.min(100, Number(decision.relevance))) : 70;
+      if (relevance < 65) continue;
+
+      const matchedThemes = Array.isArray(decision.matchedThemes)
+        ? decision.matchedThemes
+            .map((theme) => String(theme).trim().toLowerCase())
+            .filter((theme) => focusThemes.includes(theme))
+        : [];
+
+      const entities: Entities = {
+        persons: Array.isArray(decision.entities?.persons)
+          ? decision.entities.persons.map((v) => String(v).trim()).filter(Boolean).slice(0, 5)
+          : [],
+        works: Array.isArray(decision.entities?.works)
+          ? decision.entities.works.map((v) => String(v).trim()).filter(Boolean).slice(0, 5)
+          : [],
+        studios: Array.isArray(decision.entities?.studios)
+          ? decision.entities.studios.map((v) => String(v).trim()).filter(Boolean).slice(0, 5)
+          : [],
+      };
+
+      const heuristicFallback = heuristicEntities(topic.title);
+      if (entities.persons.length === 0) entities.persons = heuristicFallback.persons;
+
+      const rawCategory = String(decision.category || '').trim();
+      const category = rawCategory && rawCategory !== 'Other'
+        ? rawCategory
+        : heuristicCategorize(topic.title, domainTaxonomy);
+
+      filtered.push({
+        ...topic,
+        matchedThemes,
+        aiRelevance: relevance,
+        category,
+        aiReason: String(decision.reason || '').trim() || 'Von der KI als passend eingestuft.',
+        entities,
+        titleDe: String(decision.titleDe || '').trim() || undefined,
+        reasonDe: String(decision.reasonDe || '').trim() || undefined,
+      });
+    }
+
+    if (filtered.length > 0) {
+      console.log('[research-ai] used AI result for chunk', {
+        included: filtered.length,
+        rejected: chunkTopics.length - filtered.length,
+      });
+      return {
+        topics: filtered,
+        usedAI: true,
+        durationMs: Date.now() - startedAt,
+        rawLength: rawText.length,
+        includedCount: filtered.length,
+        rejectedCount: chunkTopics.length - filtered.length,
+        error: null,
+        fallbackReason: null,
+      };
+    }
+
+    const fallbackTopics = keywordFilter(chunkTopics, focusThemes, domainTaxonomy);
+    console.warn('[research-ai] AI returned no items for chunk, fallback to keyword filter', { included: fallbackTopics.length });
+    return {
+      topics: fallbackTopics,
+      usedAI: false,
+      durationMs: Date.now() - startedAt,
+      rawLength: rawText.length,
+      includedCount: 0,
+      rejectedCount: chunkTopics.length,
+      error: 'ai-empty-result',
+      fallbackReason: 'ai-no-items',
+    };
+  } catch (error) {
+    const message = getErrorMessage(error, 'unknown');
+    console.error('[research-ai] error on chunk, fallback to keyword filter', {
+      message,
+      durationMs: Date.now() - startedAt,
+    });
+    const fallbackTopics = keywordFilter(chunkTopics, focusThemes, domainTaxonomy);
+    return {
+      topics: fallbackTopics,
+      usedAI: false,
+      durationMs: Date.now() - startedAt,
+      rawLength: rawText.length,
+      includedCount: 0,
+      rejectedCount: 0,
+      error: message,
+      fallbackReason: message === 'AI_FILTER_TIMEOUT' ? 'ai-timeout' : 'ai-exception',
+    };
+  }
+}
+
 export async function filterHotTopicsWithAI(
   topics: HotTopic[],
   focusThemes: string[],
@@ -544,175 +742,14 @@ export async function filterHotTopicsWithAI(
 
   const timeoutMs = Math.max(15000, Number(process.env.RESEARCH_AI_TIMEOUT_MS || 1800000));
   const startedAt = Date.now();
-  let rawText = '';
-  const model = await resolvePrimaryModel();
+  const primaryDomain = (options?.primaryDomain || process.env.RESEARCH_PRIMARY_DOMAIN || 'Film, Serien, Schauspieler, Promi-News').trim();
 
-  console.log('[research-ai] start', {
-    topics: topics.length,
-    focusThemes,
-    taxonomy: domainTaxonomy,
-    timeoutMs,
-    model: model.modelId,
-  });
-
+  let model: Awaited<ReturnType<typeof resolvePrimaryModel>>;
   try {
-    const input = topics.map((topic) => ({ key: topic.key, title: topic.title }));
-    const primaryDomain = (options?.primaryDomain || process.env.RESEARCH_PRIMARY_DOMAIN || 'Film, Serien, Schauspieler, Promi-News').trim();
-
-    const prompt = await buildResearchEngineFilterPrompt({
-      primaryDomain,
-      focusThemes,
-      domainTaxonomy,
-      topics: input,
-    });
-
-    const aiResponse = await Promise.race([
-      generateText({
-        model,
-        prompt,
-      }),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('AI_FILTER_TIMEOUT')), timeoutMs);
-      }),
-    ]);
-
-    const { text } = aiResponse;
-    rawText = text || '';
-
-    console.log('[research-ai] response received', {
-      durationMs: Date.now() - startedAt,
-      textLength: rawText.length,
-    });
-
-    const jsonText = extractJsonObject(rawText);
-    if (!jsonText) {
-      const fallback = keywordFilter(topics, focusThemes, domainTaxonomy);
-      console.warn('[research-ai] no JSON in response, fallback to keyword filter', { included: fallback.length });
-      return {
-        topics: fallback,
-        diagnostics: {
-          usedAI: false,
-          aiDurationMs: Date.now() - startedAt,
-          aiRawLength: rawText.length,
-          aiIncluded: 0,
-          aiRejected: 0,
-          aiError: 'no-json-in-response',
-          fallbackReason: 'ai-no-json',
-          focusThemes,
-          taxonomy: domainTaxonomy,
-          inputTopics: topics.length,
-        },
-      };
-    }
-
-    const parsed = JSON.parse(jsonText) as {
-      items?: Array<{
-        key?: string;
-        include?: boolean;
-        relevance?: number;
-        matchedThemes?: string[];
-        category?: string;
-        reason?: string;
-        titleDe?: string;
-        reasonDe?: string;
-        entities?: {
-          persons?: string[];
-          works?: string[];
-          studios?: string[];
-        };
-      }>;
-    };
-
-    const byKey = new Map((parsed.items || []).map((item) => [String(item.key || ''), item]));
-
-    const filtered: FilteredHotTopic[] = [];
-
-    for (const topic of topics) {
-      const decision = byKey.get(topic.key);
-      if (!decision?.include) continue;
-
-      const relevance = Number.isFinite(decision.relevance) ? Math.max(0, Math.min(100, Number(decision.relevance))) : 70;
-      if (relevance < 65) continue;
-
-      const matchedThemes = Array.isArray(decision.matchedThemes)
-        ? decision.matchedThemes
-            .map((theme) => String(theme).trim().toLowerCase())
-            .filter((theme) => focusThemes.includes(theme))
-        : [];
-
-      const entities: Entities = {
-        persons: Array.isArray(decision.entities?.persons)
-          ? decision.entities.persons.map((v) => String(v).trim()).filter(Boolean).slice(0, 5)
-          : [],
-        works: Array.isArray(decision.entities?.works)
-          ? decision.entities.works.map((v) => String(v).trim()).filter(Boolean).slice(0, 5)
-          : [],
-        studios: Array.isArray(decision.entities?.studios)
-          ? decision.entities.studios.map((v) => String(v).trim()).filter(Boolean).slice(0, 5)
-          : [],
-      };
-
-      const heuristicFallback = heuristicEntities(topic.title);
-      if (entities.persons.length === 0) entities.persons = heuristicFallback.persons;
-
-      const rawCategory = String(decision.category || '').trim();
-      const category = rawCategory && rawCategory !== 'Other'
-        ? rawCategory
-        : heuristicCategorize(topic.title, domainTaxonomy);
-
-      filtered.push({
-        ...topic,
-        matchedThemes,
-        aiRelevance: relevance,
-        category,
-        aiReason: String(decision.reason || '').trim() || 'Von der KI als passend eingestuft.',
-        entities,
-        titleDe: String(decision.titleDe || '').trim() || undefined,
-        reasonDe: String(decision.reasonDe || '').trim() || undefined,
-      });
-    }
-
-    if (filtered.length > 0) {
-      const withGerman = await ensureGermanHotTopics(filtered);
-      console.log('[research-ai] used AI result', { included: withGerman.length, rejected: topics.length - withGerman.length });
-      return {
-        topics: withGerman.sort((a, b) => b.aiRelevance - a.aiRelevance || b.trendScore - a.trendScore),
-        diagnostics: {
-          usedAI: true,
-          aiDurationMs: Date.now() - startedAt,
-          aiRawLength: rawText.length,
-          aiIncluded: withGerman.length,
-          aiRejected: topics.length - withGerman.length,
-          aiError: null,
-          fallbackReason: null,
-          focusThemes,
-          taxonomy: domainTaxonomy,
-          inputTopics: topics.length,
-        },
-      };
-    }
-
-    const fallbackTopics = keywordFilter(topics, focusThemes, domainTaxonomy);
-    const fallbackTopicsDe = await ensureGermanHotTopics(fallbackTopics);
-    console.warn('[research-ai] AI returned no items, fallback to keyword filter', { included: fallbackTopicsDe.length });
-    return {
-      topics: fallbackTopicsDe,
-      diagnostics: {
-        usedAI: false,
-        aiDurationMs: Date.now() - startedAt,
-        aiRawLength: rawText.length,
-        aiIncluded: 0,
-        aiRejected: topics.length,
-        aiError: 'ai-empty-result',
-        fallbackReason: 'ai-no-items',
-        focusThemes,
-        taxonomy: domainTaxonomy,
-        inputTopics: topics.length,
-      },
-    };
-  } catch (error: any) {
-    const message = error?.message || 'unknown';
-    console.error('[research-ai] error, fallback to keyword filter', { message, durationMs: Date.now() - startedAt });
+    model = await resolvePrimaryModel();
+  } catch (error) {
+    const message = getErrorMessage(error, 'unknown');
+    console.error('[research-ai] model resolution failed, fallback to keyword filter', { message });
     const fallbackTopics = keywordFilter(topics, focusThemes, domainTaxonomy);
     const fallbackTopicsDe = await ensureGermanHotTopics(fallbackTopics);
     return {
@@ -720,17 +757,86 @@ export async function filterHotTopicsWithAI(
       diagnostics: {
         usedAI: false,
         aiDurationMs: Date.now() - startedAt,
-        aiRawLength: rawText.length || null,
+        aiRawLength: null,
         aiIncluded: 0,
         aiRejected: 0,
         aiError: message,
-        fallbackReason: message === 'AI_FILTER_TIMEOUT' ? 'ai-timeout' : 'ai-exception',
+        fallbackReason: 'ai-exception',
         focusThemes,
         taxonomy: domainTaxonomy,
         inputTopics: topics.length,
       },
     };
   }
+
+  const totalChunks = Math.ceil(topics.length / HOT_TOPICS_FILTER_CHUNK_SIZE);
+  console.log('[research-ai] start', {
+    topics: topics.length,
+    focusThemes,
+    taxonomy: domainTaxonomy,
+    timeoutMs,
+    model: model.modelId,
+    chunks: totalChunks,
+    chunkSize: HOT_TOPICS_FILTER_CHUNK_SIZE,
+  });
+
+  // Chunked like radar-score.ts's scoring batch: each chunk is its own
+  // generateText call carrying the (now-trimmed) filter instructions plus
+  // just that chunk's topics, run sequentially, results concatenated in
+  // original order. Keeps a single call from having to carry the entire
+  // topic batch (and its full instruction overhead) in one shot, and limits
+  // a bad chunk's fallback to just that chunk instead of the whole run.
+  const chunkResults: ChunkFilterResult[] = [];
+  for (let i = 0; i < topics.length; i += HOT_TOPICS_FILTER_CHUNK_SIZE) {
+    const chunk = topics.slice(i, i + HOT_TOPICS_FILTER_CHUNK_SIZE);
+    console.log(`[research-ai] starting chunk ${Math.floor(i / HOT_TOPICS_FILTER_CHUNK_SIZE) + 1}/${totalChunks}`);
+    const chunkResult = await filterTopicsChunk(chunk, focusThemes, domainTaxonomy, primaryDomain, model, timeoutMs);
+    chunkResults.push(chunkResult);
+  }
+
+  const mergedTopics = chunkResults.flatMap((result) => result.topics);
+  const aiDurationMs = chunkResults.reduce((sum, result) => sum + result.durationMs, 0);
+  const aiRawLength = chunkResults.reduce((sum, result) => sum + result.rawLength, 0);
+  const aiIncluded = chunkResults.reduce((sum, result) => sum + result.includedCount, 0);
+  const aiRejected = chunkResults.reduce((sum, result) => sum + result.rejectedCount, 0);
+  const usedAI = chunkResults.length > 0 && chunkResults.every((result) => result.usedAI);
+
+  const distinctErrors = Array.from(new Set(chunkResults.filter((result) => result.error).map((result) => result.error as string)));
+  const aiError = distinctErrors.length > 0 ? distinctErrors.join('; ') : null;
+
+  const distinctFallbackReasons = Array.from(
+    new Set(chunkResults.filter((result) => result.fallbackReason).map((result) => result.fallbackReason as string))
+  );
+  const fallbackReason = distinctFallbackReasons.length === 0
+    ? null
+    : distinctFallbackReasons.length === 1
+      ? distinctFallbackReasons[0]
+      : 'partial-chunk-fallback';
+
+  const withGerman = mergedTopics.length > 0 ? await ensureGermanHotTopics(mergedTopics) : mergedTopics;
+
+  console.log('[research-ai] done', {
+    included: withGerman.length,
+    rejected: topics.length - withGerman.length,
+    usedAI,
+    chunks: totalChunks,
+  });
+
+  return {
+    topics: withGerman.sort((a, b) => b.aiRelevance - a.aiRelevance || b.trendScore - a.trendScore),
+    diagnostics: {
+      usedAI,
+      aiDurationMs,
+      aiRawLength,
+      aiIncluded,
+      aiRejected,
+      aiError,
+      fallbackReason,
+      focusThemes,
+      taxonomy: domainTaxonomy,
+      inputTopics: topics.length,
+    },
+  };
 }
 
 // Domain-signal words only count when BOTH the topic and the author's own
@@ -789,13 +895,36 @@ export type AuthorInput = {
 
 export type AuthorMatch = { id: string; name: string; reason: string };
 
+// Builds the formatted author-roster text (name/bio/tone/instructions per
+// author) once. Callers that invoke matchAuthorsForTopics repeatedly for the
+// same author set within one run (e.g. radar-score.ts's per-chunk loop)
+// should build this once up front and pass it in via `precomputedRosterText`
+// instead of letting every call re-derive the same text from scratch.
+export function buildAuthorRosterText(authors: AuthorInput[]): string {
+  return formatAuthorRoster(
+    authors.map((author) => ({
+      id: author.id,
+      name: author.name,
+      bio: author.bio || '',
+      tone: author.tone || '',
+      instructions: author.instructions || '',
+    }))
+  );
+}
+
 // AI-based author matching: sends the whole author stack (bio/tone/rules) and
 // all topics to the LLM in one call, so it can pick a genuinely different
 // author per topic based on who actually fits, instead of the keyword
 // heuristic above (kept only as a fallback for when the AI call fails).
+//
+// `precomputedRosterText` is optional: pass it (via buildAuthorRosterText)
+// when calling this repeatedly for the same author set (e.g. once per
+// scoring chunk) so the roster text isn't rebuilt on every call. Omitted by
+// single-shot callers, who get it built for them same as before.
 export async function matchAuthorsForTopics(
   topics: Array<{ key: string; title: string }>,
-  authors: AuthorInput[]
+  authors: AuthorInput[],
+  precomputedRosterText?: string
 ): Promise<Map<string, AuthorMatch>> {
   const result = new Map<string, AuthorMatch>();
   if (topics.length === 0 || authors.length === 0) return result;
@@ -811,14 +940,9 @@ export async function matchAuthorsForTopics(
   const timeoutMs = Math.max(15000, Number(process.env.RESEARCH_AI_TIMEOUT_MS || 1800000));
 
   try {
+    const authorList = precomputedRosterText ?? buildAuthorRosterText(authors);
     const prompt = await buildAuthorMatchPrompt({
-      authors: authors.map((author) => ({
-        id: author.id,
-        name: author.name,
-        bio: author.bio || '',
-        tone: author.tone || '',
-        instructions: author.instructions || '',
-      })),
+      authorList,
       topics,
     });
 
@@ -850,8 +974,8 @@ export async function matchAuthorsForTopics(
         });
       }
     }
-  } catch (error: any) {
-    console.error('[author-match] AI matching failed, using keyword fallback', { message: error?.message });
+  } catch (error) {
+    console.error('[author-match] AI matching failed, using keyword fallback', { message: getErrorMessage(error) });
   }
 
   // Fill in anything the AI call didn't cover (timeout, malformed JSON,
