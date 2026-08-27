@@ -24,6 +24,21 @@ OpenAI, OpenRouter, Ollama, ...) werden anschliessend unter
 `/admin/einstellungen` konfiguriert - kein Rebuild noetig, um einen Provider
 zu wechseln.
 
+### ZimaOS / CasaOS
+
+Immer per SSH mit dem obigen `docker compose`-Befehl installieren, **nicht**
+über die "Custom Install" / "Install via Docker Compose"-GUI. Die GUI hat
+einen bekannten Bug ([CasaOS#1595](https://github.com/IceWhaleTech/CasaOS/issues/1595)):
+sie wandelt das named volume `news-publisher-data` beim Import still in einen
+Bind-Mount nach `/tmp/casaos-compose-app-<uuid>/...` um. `/tmp` wird bei
+Reboots (z.B. nach einem ZimaOS-Update) geleert - die SQLite-Datenbank geht
+dabei verloren, ohne dass es beim Deploy auffaellt.
+
+Per SSH umgeht `docker compose -f docker-compose.prod.yml up -d` diesen Bug,
+weil dann Docker selbst (nicht CasaOS' Importer) das named volume anlegt und
+es landet wie erwartet in einem echten Docker-Volume unter
+`/var/lib/docker/volumes/`.
+
 ### Updates einspielen
 
 ```bash
